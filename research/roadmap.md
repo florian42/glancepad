@@ -16,6 +16,11 @@ Priorities (agreed 2026-08-08):
    (ChatGPT's tap machine, state-machines §4, with `singleTapAgentKeys`
    behavior as our default).
 
+Slot assignment: we target the **`recent`** source mode (ChatGPT's
+default) — sessions ordered by last activity, de-duplicated, first six on
+the keys, no slot stickiness; rely on lighting-payload diffing to keep
+the device calm (see codex-micro-agent-key-assignment.md).
+
 Key protocol facts: JSON-RPC over HID/serial via
 `@worklouder/device-kit-oai` (`sendThreadsLighting`,
 `sendLightingConfig`, notifications `v.oai.hid` + `v.oai.rad`);
