@@ -3,6 +3,11 @@
 *Researched 2026-08-08 via web sources and inspection of the installed ChatGPT
 desktop app (Microsoft Store package `OpenAI.Codex` v26.803.5235.0).*
 
+*See also: [codex-micro-state-machines.md](codex-micro-state-machines.md)
+for a detailed reverse-engineering of every state machine in the
+integration, and [reference/](reference/) for the extracted device
+protocol type definitions.*
+
 ## What it is
 
 **Codex Micro** is OpenAI's first consumer hardware product, announced
