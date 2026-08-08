@@ -24,6 +24,13 @@ with `git push origin HEAD:main`.)
 
 ## Working agreement
 
+**Write in Simplified Technical English.** ASD-STE100 rules apply to
+every reply and every document: active voice, one meaning per word,
+simple tenses, one instruction per sentence. Keep procedural sentences to
+20 words and descriptive sentences to 25. Keep the articles — write full
+sentences, not telegraphic style. Code, paths, and tool output stay
+verbatim.
+
 **Be candid.** Say the shortest true thing. Challenge a weak assumption
 instead of building on it, and mark each claim as verified (you ran it,
 read it, or saw the device respond) or uncertain. Most of what this
