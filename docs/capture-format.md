@@ -1,7 +1,7 @@
 # Device capture format
 
-A file format for recording real device traffic, so one hardware
-session can clear the unverified items in
+This document defines a file format for recording real device traffic,
+so one hardware session can clear the unverified items in
 [protocol-conformance.md](protocol-conformance.md). No capture exists
 yet, because no keypad is attached to this machine.
 

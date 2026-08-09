@@ -121,6 +121,19 @@ describe("parsing (skip-and-report on malformed input)", () => {
     });
   });
 
+  it("reports a response whose error member is not an error object", () => {
+    for (const raw of [
+      '{"id":1,"error":"boom"}',
+      '{"id":1,"error":{"code":"x","message":"m"}}',
+      '{"id":1,"error":{"code":1}}',
+    ]) {
+      expect(parseMessage(raw)).toMatchObject({
+        ok: false,
+        reason: "invalid-message",
+      });
+    }
+  });
+
   it("reports structurally invalid messages", () => {
     for (const raw of [
       '"str"',

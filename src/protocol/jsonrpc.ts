@@ -134,15 +134,26 @@ export function parseMessage(raw: string): ParseResult {
     return { ok: true, message: { kind: "request", id, method, params } };
   }
   if (typeof id === "number" && ("result" in record || "error" in record)) {
+    if ("error" in record && !isRpcError(record.error)) {
+      return { ok: false, reason: "invalid-message", raw };
+    }
     return {
       ok: true,
       message: {
         kind: "response",
         id,
         result: record.result,
-        error: record.error as RpcError | undefined,
+        error: "error" in record ? (record.error as RpcError) : undefined,
       },
     };
   }
   return { ok: false, reason: "invalid-message", raw };
+}
+
+function isRpcError(value: unknown): value is RpcError {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    return false;
+  }
+  const record = value as Record<string, unknown>;
+  return typeof record.code === "number" && typeof record.message === "string";
 }

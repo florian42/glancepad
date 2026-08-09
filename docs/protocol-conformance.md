@@ -1,7 +1,7 @@
 # Protocol conformance checklist
 
-Every protocol constant, paired with the place in the vendor bundle it
-came from, so a human can audit the set. Bundle paths are internal to
+This document pairs every protocol constant with the place in the
+vendor bundle it came from, so a human can audit the set. Bundle paths are internal to
 the `app.asar` of the ChatGPT desktop app (`OpenAI.Codex`
 v26.803.5235.0). `WL` = `node_modules/@worklouder/device-kit-oai/`
 `node_modules/@worklouder/wl-device-kit/dist/index.js`, the wl-device-kit

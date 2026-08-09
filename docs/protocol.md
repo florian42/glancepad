@@ -91,7 +91,8 @@ text before the first `{` in a line, and it ignores a line without
 JSON. A receiver accepts the compact key aliases `m` (method), `p`
 (params), and `i` (id). A message with a `method` and no id is a
 notification; with both, a request; with an id and a `result` or
-`error` member, a response.
+`error` member, a response. A response's `error` member, when present,
+is an object with a number `code` and a string `message`.
 
 Rules and constants:
 
