@@ -1,0 +1,414 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>glancepad simulator</title>
+<style>
+  /* A dev tool page. Colors and timings of the LED effects are guesses
+     where the firmware is unread; see research/virtual-device-options.md
+     ("Rendering the LED state faithfully"). */
+  :root {
+    --panel: #14161c;
+    --panel-2: #1b1e27;
+    --edge: #2a2e3a;
+    --text: #d7dae2;
+    --muted: #8a8fa3;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font: 14px/1.45 system-ui, sans-serif;
+    background: #0d0e12;
+    color: var(--text);
+  }
+  header {
+    padding: 10px 16px;
+    border-bottom: 1px solid var(--edge);
+    display: flex;
+    gap: 12px;
+    align-items: baseline;
+  }
+  header h1 { font-size: 15px; margin: 0; }
+  header .sub { color: var(--muted); font-size: 12px; }
+  #conn { margin-left: auto; font-size: 12px; color: var(--muted); }
+  main {
+    display: grid;
+    grid-template-columns: minmax(430px, 1fr) minmax(320px, 380px);
+    gap: 16px;
+    padding: 16px;
+    align-items: start;
+  }
+  section {
+    background: var(--panel);
+    border: 1px solid var(--edge);
+    border-radius: 10px;
+    padding: 14px;
+  }
+  h2 { font-size: 12px; text-transform: uppercase; letter-spacing: 0.08em;
+       color: var(--muted); margin: 0 0 10px; }
+
+  /* ── The device ─────────────────────────────────────────────── */
+  .device-body {
+    display: flex;
+    gap: 22px;
+    align-items: center;
+    background: var(--panel-2);
+    border-radius: 12px;
+    padding: 18px;
+  }
+  .ring { position: relative; width: 132px; height: 132px; flex: none; }
+  .ring .band {
+    position: absolute;
+    inset: 0;
+    border-radius: 50%;
+    mask: radial-gradient(closest-side, transparent 66%, #000 70%);
+    -webkit-mask: radial-gradient(closest-side, transparent 66%, #000 70%);
+    background: #191c24;
+  }
+  .ring .hub {
+    position: absolute;
+    inset: 22px;
+    border-radius: 50%;
+    display: grid;
+    place-items: center;
+    color: var(--muted);
+    font-size: 10px;
+    text-align: center;
+  }
+  /* The snake band shape follows the vendor's on-screen rendering:
+     fade-in near 235°, full color at 300°, white peak at 316°, gone by
+     350°. A design reference, not firmware truth. */
+  .ring.fx-snake .band {
+    background: conic-gradient(
+      transparent 0deg 235deg,
+      var(--zone-color) 300deg,
+      #fff 316deg,
+      transparent 350deg 360deg);
+    animation: spin var(--snake-dur, 2.8s) linear infinite;
+  }
+  .ring.fx-solid .band { background: var(--zone-color); }
+  .ring.fx-breath .band {
+    background: var(--zone-color);
+    animation: breath var(--breath-dur, 3s) ease-in-out infinite;
+  }
+  @keyframes spin { to { transform: rotate(1turn); } }
+  @keyframes breath { 0%, 100% { opacity: 1; } 50% { opacity: 0.04; } }
+  @keyframes slide { to { background-position: 200% 0; } }
+
+  .keypad { display: grid; gap: 12px; }
+  .row { display: grid; grid-template-columns: repeat(6, 58px); gap: 8px; }
+  button.key {
+    position: relative;
+    height: 58px;
+    border: 1px solid #333849;
+    border-radius: 9px;
+    background: #21242f;
+    color: var(--text);
+    cursor: pointer;
+    padding: 0;
+    overflow: hidden;
+  }
+  button.key:active, button.key.held { transform: translateY(1px); }
+  button.key .led {
+    position: absolute;
+    inset: 0;
+    background: var(--zone-color, transparent);
+    opacity: 0.92;
+  }
+  button.key.fx-off .led { background: transparent; }
+  button.key.fx-breath .led {
+    animation: breath var(--breath-dur, 3s) ease-in-out infinite;
+  }
+  button.key.fx-snake .led {
+    background: linear-gradient(100deg,
+      transparent 20%, var(--zone-color) 45%, #fff 50%,
+      var(--zone-color) 55%, transparent 80%);
+    background-size: 200% 100%;
+    background-position: 0% 0;
+    animation: slide var(--snake-dur, 2.8s) linear infinite;
+  }
+  button.key .cap {
+    position: relative;
+    z-index: 1;
+    font-size: 11px;
+    font-weight: 600;
+    text-shadow: 0 1px 2px rgb(0 0 0 / 60%);
+  }
+  button.key .sub-id {
+    position: absolute;
+    z-index: 1;
+    bottom: 3px;
+    right: 6px;
+    font-size: 8px;
+    color: rgb(255 255 255 / 45%);
+  }
+  .row.commands { grid-template-columns: repeat(4, 58px) 124px 58px; }
+
+  /* ── Driver panel ───────────────────────────────────────────── */
+  table.driver { width: 100%; border-collapse: collapse; font-size: 13px; }
+  table.driver td, table.driver th {
+    padding: 4px 6px; text-align: left; border-bottom: 1px solid var(--edge);
+  }
+  table.driver select {
+    background: var(--panel-2); color: var(--text);
+    border: 1px solid var(--edge); border-radius: 5px; padding: 2px 4px;
+  }
+  .brightness { display: flex; gap: 10px; align-items: center; margin-top: 10px; }
+  .brightness input { flex: 1; }
+
+  /* ── Frame log ──────────────────────────────────────────────── */
+  section.log { grid-column: 1 / -1; }
+  #log {
+    list-style: none; margin: 0; padding: 0;
+    max-height: 320px; overflow-y: auto;
+    font: 12px/1.5 ui-monospace, monospace;
+  }
+  #log li {
+    display: grid;
+    grid-template-columns: 96px 78px 1fr;
+    gap: 10px;
+    padding: 2px 4px;
+    border-bottom: 1px solid #191c24;
+    align-items: baseline;
+  }
+  #log .dir-in { color: #7aa2ff; }
+  #log .dir-out { color: #6fd98a; }
+  #log time { color: var(--muted); }
+  #log code { word-break: break-all; white-space: pre-wrap; }
+  #log .undecoded { color: var(--muted); }
+  #log .note { color: #ff6d7a; }
+  #log details { margin-top: 1px; }
+  #log summary { color: var(--muted); cursor: pointer; font-size: 11px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>glancepad simulator</h1>
+  <span class="sub">a simulated Codex Micro — click keys, drive statuses</span>
+  <span id="conn">connecting…</span>
+</header>
+<main>
+  <section>
+    <h2>Device</h2>
+    <div class="device-body">
+      <div class="ring fx-off" id="ring">
+        <div class="band"></div>
+        <div class="hub">ambient<br />ring</div>
+      </div>
+      <div class="keypad">
+        <div class="row" id="agent-row"></div>
+        <div class="row commands" id="cmd-row"></div>
+      </div>
+    </div>
+  </section>
+  <section>
+    <h2>Driver — slot statuses</h2>
+    <table class="driver">
+      <thead>
+        <tr><th>Key</th><th>Status</th><th>Sel</th><th>Pulse</th></tr>
+      </thead>
+      <tbody id="driver-rows"></tbody>
+    </table>
+    <label class="brightness">
+      brightness
+      <input id="brightness" type="range" min="0" max="1" step="0.05" value="1" />
+      <span id="brightness-value">1.00</span>
+    </label>
+  </section>
+  <section class="log">
+    <h2>Frame log — every 64-byte report, last 200</h2>
+    <ol id="log"></ol>
+  </section>
+</main>
+
+<script type="module">
+  // Message shapes come from src/ui/server.ts. The page shares no
+  // runtime code with Node; it receives state as JSON over a WebSocket.
+  const AGENT_KEYS = ["AG00", "AG01", "AG02", "AG03", "AG04", "AG05"];
+  // Default hardware layout — research/codex-micro-agent-key-assignment.md.
+  const COMMAND_KEYS = [
+    { key: "ACT06", cap: "FAST" },
+    { key: "ACT07", cap: "APPR" },
+    { key: "ACT08", cap: "REJ" },
+    { key: "ACT09", cap: "SPLIT" },
+    { key: "ACT10_ACT11", cap: "MIC" },
+    { key: "ACT12", cap: "CODEX" },
+  ];
+  const STATUSES = ["off", "idle", "unread", "working",
+    "awaiting-approval", "awaiting-response", "error"];
+  const LOG_LIMIT = 200;
+
+  const $ = (id) => document.getElementById(id);
+
+  /* ── Build the keypad ── */
+  const makeKey = ({ key, cap }) => {
+    const button = document.createElement("button");
+    button.className = "key fx-off";
+    button.dataset.key = key;
+    button.innerHTML = `<div class="led"></div><span class="cap">${cap}</span>` +
+      (cap === key ? "" : `<span class="sub-id">${key}</span>`);
+    return button;
+  };
+  for (const key of AGENT_KEYS)
+    $("agent-row").append(makeKey({ key, cap: key }));
+  for (const entry of COMMAND_KEYS) $("cmd-row").append(makeKey(entry));
+
+  /* ── Build the driver panel ── */
+  for (let slot = 0; slot < 6; slot++) {
+    const row = document.createElement("tr");
+    row.innerHTML = `<td>${AGENT_KEYS[slot]}</td>
+      <td><select data-slot="${slot}">${STATUSES.map(
+        (s) => `<option>${s}</option>`).join("")}</select></td>
+      <td><input type="radio" name="selected" data-slot="${slot}" /></td>
+      <td><input type="checkbox" data-slot="${slot}" /></td>`;
+    $("driver-rows").append(row);
+  }
+  const noneRow = document.createElement("tr");
+  noneRow.innerHTML = `<td colspan="2">no selection</td>
+    <td><input type="radio" name="selected" data-slot="-1" checked /></td><td></td>`;
+  $("driver-rows").append(noneRow);
+
+  /* ── WebSocket ── */
+  let ws;
+  const send = (message) => {
+    if (ws?.readyState === WebSocket.OPEN) ws.send(JSON.stringify(message));
+  };
+  const connect = () => {
+    ws = new WebSocket(`ws://${location.host}/ws`);
+    ws.onopen = () => { $("conn").textContent = "connected"; };
+    ws.onclose = () => {
+      $("conn").textContent = "disconnected — retrying…";
+      setTimeout(connect, 1000);
+    };
+    ws.onmessage = (event) => {
+      const message = JSON.parse(event.data);
+      if (message.type === "hello") {
+        $("log").replaceChildren();
+        for (const entry of message.log) appendLog(entry);
+        paintState(message.state);
+        paintDriver(message.driver);
+      }
+      if (message.type === "state") paintState(message.state);
+      if (message.type === "driver") paintDriver(message.driver);
+      if (message.type === "frame") appendLog(message.entry);
+    };
+  };
+  connect();
+
+  /* ── Key presses: press on pointerdown, release on pointerup ── */
+  const held = new Set();
+  document.querySelectorAll("button.key").forEach((button) => {
+    const key = button.dataset.key;
+    button.addEventListener("pointerdown", () => {
+      held.add(key);
+      button.classList.add("held");
+      send({ type: "key", key, act: 1 });
+    });
+  });
+  const releaseAll = () => {
+    for (const key of held) {
+      send({ type: "key", key, act: 0 });
+      document.querySelector(`[data-key="${key}"]`)?.classList.remove("held");
+    }
+    held.clear();
+  };
+  window.addEventListener("pointerup", releaseAll);
+  window.addEventListener("blur", releaseAll);
+
+  /* ── Driver panel events ── */
+  $("driver-rows").addEventListener("change", (event) => {
+    const slot = Number(event.target.dataset.slot);
+    if (event.target.matches("select"))
+      send({ type: "slot", slot, status: event.target.value });
+    if (event.target.matches('input[type="radio"]')) {
+      if (slot === -1) {
+        const current = driverState.slots.findIndex((s) => s.selected);
+        if (current !== -1)
+          send({ type: "slot", slot: current, selected: false });
+      } else {
+        send({ type: "slot", slot, selected: true });
+      }
+    }
+    if (event.target.matches('input[type="checkbox"]'))
+      send({ type: "slot", slot, pulsing: event.target.checked });
+  });
+  $("brightness").addEventListener("change", (event) => {
+    send({ type: "brightness", value: Number(event.target.value) });
+  });
+
+  /* ── Painting ── */
+  let driverState = { slots: [], brightness: 1, selectionVisible: false };
+
+  // Animation periods are guesses: the vendor's on-screen snake takes
+  // 2.8 s in the selected state, and speed 0.4 is the only value the
+  // integration sends. Firmware timing is unverified.
+  const snakeDur = (speed) => (speed > 0 ? `${(1.12 / speed).toFixed(2)}s` : "0s");
+  const breathDur = (speed) => (speed > 0 ? `${(1.2 / speed).toFixed(2)}s` : "0s");
+
+  const paintZone = (element, zone) => {
+    const [r, g, b] = [1, 3, 5].map((i) =>
+      Math.round(parseInt(zone.color.slice(i, i + 2), 16) * zone.brightness));
+    element.style.setProperty("--zone-color", `rgb(${r} ${g} ${b})`);
+    element.style.setProperty("--snake-dur", snakeDur(zone.speed));
+    element.style.setProperty("--breath-dur", breathDur(zone.speed));
+    element.classList.remove("fx-off", "fx-solid", "fx-snake", "fx-breath");
+    const known = ["off", "solid", "snake", "breath"];
+    // Unimplemented effects (rainbow, gradient, shallowBreath) fall
+    // back to solid; the integration never sends them.
+    element.classList.add(
+      `fx-${known.includes(zone.effect) ? zone.effect : "solid"}`);
+  };
+
+  const paintState = (state) => {
+    for (const key of AGENT_KEYS)
+      paintZone(document.querySelector(`[data-key="${key}"]`), state.slots[key]);
+    paintZone($("ring"), state.ambient);
+    for (const { key } of COMMAND_KEYS)
+      paintZone(document.querySelector(`[data-key="${key}"]`), state.keys);
+  };
+
+  const paintDriver = (driver) => {
+    driverState = driver;
+    driver.slots.forEach((slot, index) => {
+      document.querySelector(`select[data-slot="${index}"]`).value = slot.status;
+      document.querySelector(`input[type="checkbox"][data-slot="${index}"]`)
+        .checked = slot.pulsing;
+      document.querySelector(`input[type="radio"][data-slot="${index}"]`)
+        .checked = slot.selected;
+    });
+    if (!driver.slots.some((slot) => slot.selected))
+      document.querySelector('input[type="radio"][data-slot="-1"]').checked = true;
+    $("brightness").value = driver.brightness;
+    $("brightness-value").textContent = driver.brightness.toFixed(2);
+  };
+
+  /* ── Frame log ── */
+  const appendLog = (entry) => {
+    const log = $("log");
+    const item = document.createElement("li");
+    const stamp = `${new Date(entry.ts).toLocaleTimeString("en-GB", {
+      hour12: false })}.${String(entry.ts % 1000).padStart(3, "0")}`;
+    const dir = entry.direction === "host-to-device"
+      ? '<span class="dir-in">→ device</span>'
+      : '<span class="dir-out">device →</span>';
+    const decoded = entry.decoded.length
+      ? `<code>${entry.decoded.map(escapeHtml).join("<br />")}</code>`
+      : '<code class="undecoded">…</code>';
+    const note = entry.note ? ` <span class="note">${escapeHtml(entry.note)}</span>` : "";
+    item.innerHTML = `<time>${stamp}</time>${dir}
+      <div>${decoded}${note}
+        <details><summary>raw</summary><code>${entry.hex}</code></details>
+      </div>`;
+    const stick = log.scrollTop + log.clientHeight >= log.scrollHeight - 8;
+    log.append(item);
+    while (log.children.length > LOG_LIMIT) log.firstChild.remove();
+    if (stick) log.scrollTop = log.scrollHeight;
+  };
+
+  const escapeHtml = (text) =>
+    text.replace(/[&<>"]/g, (c) =>
+      ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
+</script>
+</body>
+</html>

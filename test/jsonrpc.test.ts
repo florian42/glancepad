@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   encodeNotification,
   encodeRequest,
+  encodeResponse,
   escapeNonAscii,
   isValidRequestId,
   nextRequestId,
@@ -148,5 +149,41 @@ describe("parsing (skip-and-report on malformed input)", () => {
         reason: "invalid-message",
       });
     }
+  });
+});
+
+describe("encoding responses (the device-to-host direction)", () => {
+  it("encodes a result as {result, id}", () => {
+    expect(encodeResponse(7, { result: true })).toBe('{"result":true,"id":7}');
+  });
+
+  it("encodes an error as {error, id}", () => {
+    expect(
+      encodeResponse(7, {
+        error: { code: -32601, message: "method not found" },
+      }),
+    ).toBe('{"error":{"code":-32601,"message":"method not found"},"id":7}');
+  });
+
+  it("escapes non-ASCII, like the request encoder", () => {
+    expect(encodeResponse(1, { result: "ok ✓" })).toBe(
+      '{"result":"ok \\u2713","id":1}',
+    );
+  });
+
+  it("throws on an id outside the firmware range", () => {
+    expect(() => encodeResponse(RPC_ID_LIMIT, { result: true })).toThrow(
+      RangeError,
+    );
+  });
+
+  it("round-trips through parseMessage with the raw text attached", () => {
+    const raw = encodeResponse(3, { result: true });
+    const parsed = parseMessage(raw);
+    expect(parsed).toEqual({
+      ok: true,
+      message: { kind: "response", id: 3, result: true, error: undefined },
+      raw,
+    });
   });
 });

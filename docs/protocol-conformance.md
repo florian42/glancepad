@@ -87,10 +87,19 @@ exists so one hardware session can clear this column.
 | 42 | Lighting zones | `ambient` ring and `keys` backlight | `OAI` `oai_lighting_config.d.ts` | read |
 | 43 | `brightness` and `speed` | normalized 0–1 | `OAI` `oai_lighting_side.d.ts` | read |
 | 44 | Per-agent-key lighting | a separate thread-lighting array | `OAI` `thread_lighting.d.ts` | read |
+| 45 | Threads-lighting method | `v.oai.thstatus` | `OAI` `rpc_api_oai.js`, `VendorJsonRpcMethods` | read |
+| 46 | Threads-lighting params | a bare array of `{id, c?, b?, e?, s?, sk?, sa?}`; sync flags sent as `0`/`1`, members omitted when unset | `OAI` `rpc_api_oai.js`, `sendThreadsLighting` | read |
+| 47 | Zone-config method | `v.oai.rgbcfg` | `OAI` `rpc_api_oai.js`, `VendorJsonRpcMethods` | read |
+| 48 | Zone-config params | `{ambient, keys}`, each `{e, b, s, m, c}`; `m` is always `0`, meaning unknown | `OAI` `rpc_api_oai.js`, `minimizeLightingSide` | read |
+| 49 | Per-slot lighting rules | `off` → all zero; selected or pulsing → `breath` at speed 0.4; otherwise `solid`; sync flags always false | `SVC` payload builders; `research/virtual-device-options.md` §6 | read |
+| 50 | Zone lighting rules | ambient: `snake` 0.4 while the selected slot works, `solid` in the status color while selection lighting is visible (4000 ms after selection), else `off`; keys: `solid` in the ambient color while visible, else `off` | same | read |
+| 51 | Response wire shape | `{result, id}` on success, `{error: {code, message}, id}` on failure; codes -32601/-32602 | no vendor writer exists — the firmware is unread | choice |
 
 The earlier bundle reading established items 27–44
-(`research/virtual-device-options.md` §4). The cold re-derivation
-covered framing and the RPC layer, not these.
+(`research/virtual-device-options.md` §4); items 45–48 come from reading
+`OAI` `rpc_api_oai.js` directly, and 49–50 from the `SVC` payload
+builders recorded in the research. The cold re-derivation covered
+framing and the RPC layer, not these.
 
 ## Divergences from the vendor host, deliberate
 
@@ -103,6 +112,11 @@ covered framing and the RPC layer, not these.
   both channel buffers. Ours reports a structured decode error and
   keeps the buffers.
 - **Id generation.** Random there, sequential wrap here (item 18).
+- **Simulated firmware receive.** Host→device messages are bare, so our
+  simulated device finds message boundaries by JSON completeness,
+  fragment by fragment, and decodes each fragment as UTF-8 on arrival.
+  That is safe because the host escapes the wire text to ASCII (item
+  14). How the real firmware does this is unread.
 
 ## Known limits of this evidence
 

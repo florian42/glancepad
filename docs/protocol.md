@@ -157,6 +157,26 @@ Packed RGB integers (`0xRRGGBB`):
 and `keys`. Per-agent-key lighting travels as a separate thread-lighting
 array.
 
+### Lighting calls
+
+Two request methods carry all lighting
+([protocol-conformance.md](protocol-conformance.md) items 45–48):
+
+- **`v.oai.thstatus`** — per-agent-key lighting. The params member is a
+  bare array of entries `{id, c, b, e, s, sk, sa}`: slot id, packed RGB
+  color, brightness, effect, speed, and the two sync flags as `0` or
+  `1`. Only `id` is required; an omitted member leaves that aspect
+  unchanged on the device.
+- **`v.oai.rgbcfg`** — the two zones. The params member is
+  `{ambient, keys}`, each zone `{e, b, s, m, c}`: effect, brightness,
+  speed, magic, packed RGB color. The vendor host always sends `m: 0`;
+  its meaning is unknown.
+
+No vendor code shows what the firmware answers, because no one can read
+the firmware. Our simulator answers `{result, id}` on success and
+`{error: {code, message}, id}` on failure — a choice, not a vendor fact
+(conformance item 51).
+
 ## 9. Serial transport
 
 Over a serial port the transport is plain UTF-8 text at **115 200

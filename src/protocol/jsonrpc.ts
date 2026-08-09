@@ -34,7 +34,7 @@ export interface RpcResponse {
 export type RpcMessage = RpcRequest | RpcNotification | RpcResponse;
 
 export type ParseResult =
-  | { readonly ok: true; readonly message: RpcMessage }
+  | { readonly ok: true; readonly message: RpcMessage; readonly raw: string }
   | {
       readonly ok: false;
       readonly reason: "invalid-json" | "invalid-message";
@@ -105,6 +105,28 @@ export function encodeNotification(
 }
 
 /**
+ * Encodes a response, the device-to-host direction. No vendor writer
+ * exists to read — the firmware is closed — so the member shape
+ * `{result, id}` / `{error, id}` is our own choice, matched to what
+ * `parseMessage` accepts. Throws on an id outside the firmware range.
+ */
+export function encodeResponse(
+  id: number,
+  outcome: { result: unknown } | { error: RpcError },
+): string {
+  if (!isValidRequestId(id)) {
+    throw new RangeError(
+      `response id must be an integer in [0, ${RPC_ID_LIMIT})`,
+    );
+  }
+  const body =
+    "error" in outcome
+      ? { error: outcome.error, id }
+      : { result: outcome.result, id };
+  return escapeNonAscii(JSON.stringify(body));
+}
+
+/**
  * Parses one complete RPC JSON text. Never throws on device input:
  * malformed text comes back as an `{ok: false}` result. Accepts the
  * compact aliases `m`/`p`/`i` and ignores an extra `jsonrpc` member.
@@ -125,13 +147,13 @@ export function parseMessage(raw: string): ParseResult {
   const params = record.params ?? record.p ?? null;
 
   if (typeof method === "string" && id === undefined) {
-    return { ok: true, message: { kind: "notification", method, params } };
+    return { ok: true, message: { kind: "notification", method, params }, raw };
   }
   if (id !== undefined && typeof id !== "number") {
     return { ok: false, reason: "invalid-message", raw };
   }
   if (typeof method === "string" && typeof id === "number") {
-    return { ok: true, message: { kind: "request", id, method, params } };
+    return { ok: true, message: { kind: "request", id, method, params }, raw };
   }
   if (typeof id === "number" && ("result" in record || "error" in record)) {
     if ("error" in record && !isRpcError(record.error)) {
@@ -145,6 +167,7 @@ export function parseMessage(raw: string): ParseResult {
         result: record.result,
         error: "error" in record ? (record.error as RpcError) : undefined,
       },
+      raw,
     };
   }
   return { ok: false, reason: "invalid-message", raw };

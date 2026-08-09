@@ -15,11 +15,27 @@ switching windows.
 
 ## Status
 
-Early. No code yet — the repository holds research and a specification.
+Early. The wire protocol is implemented and tested in
+[`src/protocol/`](src/protocol/), and a human-usable simulator exists —
+see below.
 
 The device protocol has been worked out by reading and is recorded in
 [`research/`](research/), but **nothing has been tested against hardware**.
 Every device-facing claim is marked as verified-by-reading or unverified.
+
+## Run the simulator
+
+```sh
+pnpm install
+pnpm sim         # serves the on-screen keypad on http://localhost:4180/
+pnpm sim:state   # prints the six keys and both zones as JSON
+```
+
+The page shows the six agent keys, the ambient ring, the keys backlight,
+and a frame log of every 64-byte report in both directions. Keys are
+clickable; press and release emit real `v.oai.hid` notifications through
+the same framing code hardware mode will use. Headless is the same
+process with no browser connected.
 
 ## What is here
 

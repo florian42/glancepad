@@ -22,6 +22,16 @@ export const SEND_COOLDOWN_MS = 50;
 export const NOTIFY_KEYS = "v.oai.hid";
 export const NOTIFY_JOYSTICK = "v.oai.rad";
 
+// Lighting RPC methods (conformance items 45, 47).
+export const METHOD_THREADS_LIGHTING = "v.oai.thstatus";
+export const METHOD_LIGHTING_CONFIG = "v.oai.rgbcfg";
+
+// The one animation speed the integration ever sends (item 49).
+export const LIGHTING_SPEED = 0.4;
+// Selection lighting stays visible this long after a slot becomes
+// selected (item 50).
+export const SELECTION_LIGHTING_MS = 4000;
+
 export const SERIAL_BAUD = 115_200;
 
 export const TRANSPORT_ERRORS = [
