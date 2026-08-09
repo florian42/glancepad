@@ -11,18 +11,18 @@ bundle; class `WLDeviceCommImpl` (transport) and `WLRPCClient` (codec).
 **Status values, weakest to strongest.**
 
 - `choice` — our own decision, not a vendor fact.
-- `inferred` — implied by vendor receive code; no writer exists to read.
-- `read` — verified by reading the bundle, and independently confirmed
-  on 2026-08-09 by a cold re-derivation: a second agent with a fresh
-  context derived the framing from the bundle without seeing our
-  implementation or research notes, and the two derivations agree.
-- `oracle` — `read`, and additionally the vendor's own framing function
-  was executed locally against our test messages; its output matched
-  our committed vectors byte for byte.
+- `inferred` — the vendor receive code implies the value. No vendor
+  writer exists for us to read.
+- `read` — we verified the value by reading the bundle. An independent
+  cold re-derivation confirmed it on 2026-08-09 — see
+  [cold-derivation-2026-08-09.md](cold-derivation-2026-08-09.md).
+- `oracle` — `read`, plus execution: we ran the vendor's own framing
+  function locally against our test messages. Its output matched our
+  committed vectors byte for byte.
 
-**No constant is wire-verified: no keypad has been attached.** The
-capture format in [capture-format.md](capture-format.md) exists so one
-hardware session can clear this column.
+**No constant is wire-verified, because no keypad is attached to this
+machine.** The capture format in [capture-format.md](capture-format.md)
+exists so one hardware session can clear this column.
 
 ## Framing
 
@@ -82,8 +82,8 @@ hardware session can clear this column.
 | 37 | Color `off` | `0x000000` | same | read |
 | 38 | Effect enum | 0 off, 1 solid, 2 snake, 3 rainbow, 4 breath, 5 gradient, 6 shallowBreath | `OAI` `oai_lighting_effect.d.ts` | read |
 
-Items 27–38 were established by the earlier bundle reading
-(`research/virtual-device-options.md` §4); the cold re-derivation
+The earlier bundle reading established items 27–38
+(`research/virtual-device-options.md` §4). The cold re-derivation
 covered framing and the RPC layer, not these.
 
 ## Divergences from the vendor host, deliberate

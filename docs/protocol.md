@@ -1,9 +1,9 @@
 # Codex Micro wire protocol — specification
 
 This document specifies the wire protocol in our own words. It is the
-source for the byte vectors in `src/protocol/vectors.json` and for the
-tests. Every fact here comes from reading vendor code, not from a wire.
-The verification status of each constant lives in
+source for the byte vectors in `test/vectors.json` and for the tests.
+Every fact here comes from reading vendor code, not from a wire. The
+verification status of each constant lives in
 [protocol-conformance.md](protocol-conformance.md).
 
 ## 1. Scope
@@ -50,9 +50,9 @@ The two directions terminate messages differently:
   newline**. The vendor host frames exactly the JSON text and nothing
   more. (In practice the text is also pure ASCII — see §5.)
 - **Device to host**: each message is one line, terminated by `\n`. The
-  host receiver only delivers text after a line terminator arrives, so
-  this direction must terminate. This is inferred from the host's
-  receive code; firmware source is not available.
+  host receiver delivers text only after a line terminator arrives, so
+  this direction must terminate. We infer this from the host's receive
+  code. We cannot read the firmware.
 
 Text whose encoded form is 61 bytes or fewer fits in one report. A
 62-byte text produces two reports: 61 bytes, then 1 byte.
@@ -166,11 +166,12 @@ parser.
 ## 10. Test vectors
 
 The committed vectors in `test/vectors.json` frame these messages by
-the rules in §2–§3. Vector bytes are written as hex. The vectors were
-derived from this document, checked byte-for-byte against the vendor's
-own framing function executed locally, and confirmed by an independent
-cold re-derivation from the vendor bundle (see
-[protocol-conformance.md](protocol-conformance.md)).
+the rules in §2–§3. Vector bytes are written as hex. The vectors
+derive from this document. We executed the vendor's own framing
+function locally, and its output matched them byte for byte. An
+independent cold re-derivation from the vendor bundle also agrees —
+see [cold-derivation-2026-08-09.md](cold-derivation-2026-08-09.md)
+and [protocol-conformance.md](protocol-conformance.md).
 
 `terminated` vectors frame `message + "\n"` (the line direction, §3);
 the bare vector frames the message text exactly (the host-to-device

@@ -6,13 +6,11 @@ import {
   decodeReport,
   encodeFrames,
   encodeLine,
-  feedReport,
   feedRpcLine,
-  initialReassembly,
   initialRpcAccumulator,
   parseMessage,
-  type ReassemblyState,
 } from "../src/protocol/index.js";
+import { feedAll, fromHex, toHex } from "./helpers.js";
 
 interface Vector {
   name: string;
@@ -26,12 +24,6 @@ const { vectors } = JSON.parse(
   readFileSync(new URL("./vectors.json", import.meta.url), "utf8"),
 ) as { vectors: Vector[] };
 
-const toHex = (report: Uint8Array) =>
-  Array.from(report, (b) => b.toString(16).padStart(2, "0")).join("");
-
-const fromHex = (hex: string) =>
-  new Uint8Array(hex.match(/.{2}/g)?.map((b) => Number.parseInt(b, 16)) ?? []);
-
 describe("committed byte vectors (docs/protocol.md §10)", () => {
   for (const vector of vectors) {
     it(`${vector.name}: encoder reproduces the committed bytes`, () => {
@@ -44,17 +36,8 @@ describe("committed byte vectors (docs/protocol.md §10)", () => {
 
   for (const vector of vectors.filter((v) => v.terminated)) {
     it(`${vector.name}: line reassembly recovers the message`, () => {
-      let state: ReassemblyState = initialReassembly;
-      const collected: { channel: Channel; text: string }[] = [];
-      for (const hex of vector.reports) {
-        const [next, events] = feedReport(state, fromHex(hex));
-        state = next;
-        for (const event of events) {
-          expect(event.kind).toBe("line");
-          if (event.kind === "line") collected.push(event);
-        }
-      }
-      expect(collected).toEqual([
+      const [, events] = feedAll(vector.reports.map(fromHex));
+      expect(events).toEqual([
         { kind: "line", channel: vector.channel, text: vector.message },
       ]);
     });

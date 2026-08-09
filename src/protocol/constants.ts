@@ -1,5 +1,8 @@
 // Protocol constants. Source and verification status for every value:
-// docs/protocol-conformance.md.
+// docs/protocol-conformance.md. Values without a consumer yet (colors,
+// keys, effects, timings) are still exported on purpose: the issue
+// scopes them to this module, and the conformance table audits them
+// here as executable documentation.
 
 export const REPORT_SIZE = 64;
 export const REPORT_ID = 6;

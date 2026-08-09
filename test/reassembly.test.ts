@@ -3,37 +3,16 @@ import { describe, expect, it } from "vitest";
 import {
   CHANNEL_DEBUG,
   CHANNEL_RPC,
-  type Channel,
   encodeLine,
-  feedReport,
-  initialReassembly,
   MAX_FRAGMENT,
-  REPORT_ID,
-  REPORT_SIZE,
-  type ReassemblyEvent,
-  type ReassemblyState,
 } from "../src/protocol/index.js";
-
-const channelArb = fc.constantFrom<Channel>(CHANNEL_DEBUG, CHANNEL_RPC);
-const messageArb = fc
-  .oneof(fc.string(), fc.string({ unit: "grapheme" }))
-  .filter((s) => !/[\r\n]/.test(s));
-
-function feedAll(
-  reports: readonly Uint8Array[],
-  state: ReassemblyState = initialReassembly,
-): [ReassemblyState, ReassemblyEvent[]] {
-  const events: ReassemblyEvent[] = [];
-  for (const report of reports) {
-    const [next, produced] = feedReport(state, report);
-    state = next;
-    events.push(...produced);
-  }
-  return [state, events];
-}
-
-const lines = (events: readonly ReassemblyEvent[]) =>
-  events.flatMap((e) => (e.kind === "line" ? [e] : []));
+import {
+  channelArb,
+  feedAll,
+  lines,
+  messageArb,
+  rawReport,
+} from "./helpers.js";
 
 describe("round trip through reassembly (docs/protocol.md §3–§4)", () => {
   it("any single message survives encode → feed", () => {
@@ -116,16 +95,6 @@ describe("channel independence (docs/protocol.md §4)", () => {
 });
 
 describe("receiver tolerance (docs/protocol.md §4)", () => {
-  const rawReport = (channel: number, payload: string) => {
-    const bytes = new TextEncoder().encode(payload);
-    const report = new Uint8Array(REPORT_SIZE);
-    report[0] = REPORT_ID;
-    report[1] = channel;
-    report[2] = bytes.length;
-    report.set(bytes, 3);
-    return report;
-  };
-
   it("accepts \\r\\n as a line terminator", () => {
     const [, events] = feedAll([rawReport(CHANNEL_RPC, "x\r\ny\n")]);
     expect(lines(events).map((l) => l.text)).toEqual(["x", "y"]);

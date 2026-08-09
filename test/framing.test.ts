@@ -1,9 +1,7 @@
 import fc from "fast-check";
 import { describe, expect, it } from "vitest";
 import {
-  CHANNEL_DEBUG,
   CHANNEL_RPC,
-  type Channel,
   decodeReport,
   encodeFrames,
   encodeLine,
@@ -12,13 +10,7 @@ import {
   REPORT_ID,
   REPORT_SIZE,
 } from "../src/protocol/index.js";
-
-const channelArb = fc.constantFrom<Channel>(CHANNEL_DEBUG, CHANNEL_RPC);
-
-// Any line content, ASCII or multi-byte, without a line terminator.
-const messageArb = fc
-  .oneof(fc.string(), fc.string({ unit: "grapheme" }))
-  .filter((s) => !/[\r\n]/.test(s));
+import { channelArb, messageArb, payloadsOf, rawReport } from "./helpers.js";
 
 const byteLength = (s: string) => new TextEncoder().encode(s).length;
 
@@ -32,13 +24,7 @@ describe("encodeFrames (docs/protocol.md §2–§3, bare direction)", () => {
           const reports = encodeFrames(channel, text);
           const bytes = new TextEncoder().encode(text);
           expect(reports).toHaveLength(Math.ceil(bytes.length / MAX_FRAGMENT));
-          const payloads = reports.flatMap((report) => [
-            ...report.subarray(
-              PAYLOAD_OFFSET,
-              PAYLOAD_OFFSET + (report[2] as number),
-            ),
-          ]);
-          expect(new Uint8Array(payloads)).toEqual(bytes);
+          expect(payloadsOf(reports)).toEqual(bytes);
         },
       ),
     );
@@ -83,13 +69,7 @@ describe("encodeLine (docs/protocol.md §2–§3)", () => {
   it("concatenated payloads equal the UTF-8 line, terminator included", () => {
     fc.assert(
       fc.property(channelArb, messageArb, (channel, message) => {
-        const payloads = encodeLine(channel, message).flatMap((report) => [
-          ...report.subarray(
-            PAYLOAD_OFFSET,
-            PAYLOAD_OFFSET + (report[2] as number),
-          ),
-        ]);
-        expect(new Uint8Array(payloads)).toEqual(
+        expect(payloadsOf(encodeLine(channel, message))).toEqual(
           new TextEncoder().encode(`${message}\n`),
         );
       }),
@@ -114,14 +94,7 @@ describe("encodeLine (docs/protocol.md §2–§3)", () => {
 });
 
 describe("decodeReport on malformed input (docs/protocol.md §2)", () => {
-  const good = () => {
-    const report = new Uint8Array(REPORT_SIZE);
-    report[0] = REPORT_ID;
-    report[1] = CHANNEL_RPC;
-    report[2] = 1;
-    report[3] = 0x78;
-    return report;
-  };
+  const good = () => rawReport(CHANNEL_RPC, "x");
 
   it("accepts a well-formed report", () => {
     expect(decodeReport(good()).ok).toBe(true);
@@ -138,9 +111,7 @@ describe("decodeReport on malformed input (docs/protocol.md §2)", () => {
   });
 
   it("reports an unknown channel", () => {
-    const report = good();
-    report[1] = 3;
-    expect(decodeReport(report)).toEqual({
+    expect(decodeReport(rawReport(3, "x"))).toEqual({
       ok: false,
       reason: "bad-channel",
       channel: 3,
