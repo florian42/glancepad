@@ -36,6 +36,19 @@ import {
 
 const FRAME_LOG_LIMIT = 200;
 
+// The default hardware layout: keycap legends per command key, with the
+// microphone keys merged — research/codex-micro-agent-key-assignment.md,
+// "Default hardware layout". Sent to the page in the hello message so
+// the key lists live in one place.
+const COMMAND_KEY_LAYOUT = [
+  { key: "ACT06", cap: "FAST" },
+  { key: "ACT07", cap: "APPR" },
+  { key: "ACT08", cap: "REJ" },
+  { key: "ACT09", cap: "SPLIT" },
+  { key: "ACT10_ACT11", cap: "MIC" },
+  { key: "ACT12", cap: "CODEX" },
+] as const;
+
 interface FrameLogEntry {
   readonly direction: "host-to-device" | "device-to-host";
   readonly ts: number;
@@ -52,6 +65,8 @@ export interface SimulatorServer {
 export interface SimulatorServerOptions {
   /** TCP port; 0 picks a free one. */
   readonly port: number;
+  /** Selection-lighting duration override, for tests. */
+  readonly selectionLightingMs?: number;
 }
 
 const EFFECT_NAMES = new Map<number, string>(
@@ -110,15 +125,25 @@ export async function startSimulatorServer(
   let brightness = 1;
   let selectionVisible = false;
   let selectionTimer: NodeJS.Timeout | undefined;
+  const selectionLightingMs =
+    options.selectionLightingMs ?? SELECTION_LIGHTING_MS;
   let requestId = 0;
   const frameLog: FrameLogEntry[] = [];
 
-  const sendRpc = async (method: string, params: unknown): Promise<void> => {
-    const text = encodeRequest(requestId, method, params);
-    requestId = nextRequestId(requestId);
-    for (const report of encodeFrames(CHANNEL_RPC, text)) {
-      await device.send(report);
-    }
+  // Sends are serialized on one chain. Two concurrent panel changes
+  // would otherwise interleave the reports of two RPC messages, and the
+  // device-side accumulator cannot untangle that. The vendor host
+  // serializes its sends through a queue for the same reason.
+  let sendChain: Promise<void> = Promise.resolve();
+  const sendRpc = (method: string, params: unknown): Promise<void> => {
+    sendChain = sendChain.then(async () => {
+      const text = encodeRequest(requestId, method, params);
+      requestId = nextRequestId(requestId);
+      for (const report of encodeFrames(CHANNEL_RPC, text)) {
+        await device.send(report);
+      }
+    });
+    return sendChain;
   };
 
   const pushThreads = () =>
@@ -170,7 +195,7 @@ export async function startSimulatorServer(
           selectionVisible = false;
           broadcast({ type: "driver", driver: driverDump() });
           void pushConfig();
-        }, SELECTION_LIGHTING_MS);
+        }, selectionLightingMs);
       }
     }
     broadcast({ type: "driver", driver: driverDump() });
@@ -240,6 +265,11 @@ export async function startSimulatorServer(
       client.send(
         JSON.stringify({
           type: "hello",
+          layout: {
+            agentKeys: AGENT_KEYS,
+            commandKeys: COMMAND_KEY_LAYOUT,
+            statuses: Object.keys(STATUS_COLORS),
+          },
           state: dumpState(device.lighting),
           driver: driverDump(),
           log: frameLog,

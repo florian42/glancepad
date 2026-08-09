@@ -103,23 +103,11 @@ export function deriveLightingConfig(
     return { ambient: OFF_ZONE, keys: OFF_ZONE };
   }
   const color = STATUS_COLORS[selected.status];
-  const solid: WireZone = {
-    e: LIGHTING_EFFECTS.solid,
-    b: brightness,
-    s: 0,
-    m: 0,
-    c: color,
-  };
+  const solid = zone(LIGHTING_EFFECTS.solid, color, brightness, 0);
   const keys = selectionLightingVisible ? solid : OFF_ZONE;
   if (selected.status === "working") {
     return {
-      ambient: {
-        e: LIGHTING_EFFECTS.snake,
-        b: brightness,
-        s: LIGHTING_SPEED,
-        m: 0,
-        c: color,
-      },
+      ambient: zone(LIGHTING_EFFECTS.snake, color, brightness, LIGHTING_SPEED),
       keys,
     };
   }
@@ -128,10 +116,17 @@ export function deriveLightingConfig(
     : { ambient: OFF_ZONE, keys: OFF_ZONE };
 }
 
+const zone = (
+  effect: number,
+  color: number,
+  brightness: number,
+  speed: number,
+): WireZone => ({ e: effect, b: brightness, s: speed, m: 0, c: color });
+
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value);
 
-const numberOr = (value: unknown): number | undefined =>
+const asNumber = (value: unknown): number | undefined =>
   typeof value === "number" ? value : undefined;
 
 /**
@@ -156,10 +151,10 @@ export function parseThreadsParams(
       e?: number;
       s?: number;
     } = { id };
-    const c = numberOr(raw.c);
-    const b = numberOr(raw.b);
-    const e = numberOr(raw.e);
-    const s = numberOr(raw.s);
+    const c = asNumber(raw.c);
+    const b = asNumber(raw.b);
+    const e = asNumber(raw.e);
+    const s = asNumber(raw.s);
     if (c !== undefined) entry.c = c;
     if (b !== undefined) entry.b = b;
     if (e !== undefined) entry.e = e;
@@ -185,11 +180,11 @@ export function parseConfigParams(
 
 function parseZone(value: unknown): WireZone | undefined {
   if (!isRecord(value)) return undefined;
-  const e = numberOr(value.e);
-  const b = numberOr(value.b);
-  const s = numberOr(value.s);
-  const m = numberOr(value.m);
-  const c = numberOr(value.c);
+  const e = asNumber(value.e);
+  const b = asNumber(value.b);
+  const s = asNumber(value.s);
+  const m = asNumber(value.m);
+  const c = asNumber(value.c);
   if (
     e === undefined ||
     b === undefined ||

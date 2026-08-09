@@ -148,6 +148,33 @@ describe("simulator server", () => {
     expect(dump.slots.AG00?.effect).toBe("breath");
   });
 
+  it("turns the keys backlight off when selection lighting expires", async () => {
+    server = await startSimulatorServer(new SimulatedDevice(), {
+      port: 0,
+      selectionLightingMs: 50,
+    });
+    client = await connect(server.port);
+
+    type StateMessage = Extract<ServerMessage, { type: "state" }>;
+    client.send({ type: "slot", slot: 2, status: "working" });
+    client.send({ type: "slot", slot: 2, selected: true });
+    await client.next<StateMessage>(
+      (m) => m.type === "state" && m.state.keys.effect === "solid",
+    );
+    // After expiry the keys backlight is off, but the ring keeps
+    // snaking while the selected slot works — only the keys backlight
+    // follows the selection window.
+    await client.next<StateMessage>(
+      (m) =>
+        m.type === "state" &&
+        m.state.keys.effect === "off" &&
+        m.state.ambient.effect === "snake",
+    );
+    await client.next<Extract<ServerMessage, { type: "driver" }>>(
+      (m) => m.type === "driver" && m.driver.selectionVisible === false,
+    );
+  });
+
   it("turns a key click into a framed v.oai.hid notification", async () => {
     server = await startSimulatorServer(new SimulatedDevice(), { port: 0 });
     client = await connect(server.port);

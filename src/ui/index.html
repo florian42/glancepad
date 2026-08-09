@@ -224,24 +224,16 @@
 
 <script type="module">
   // Message shapes come from src/ui/server.ts. The page shares no
-  // runtime code with Node; it receives state as JSON over a WebSocket.
-  const AGENT_KEYS = ["AG00", "AG01", "AG02", "AG03", "AG04", "AG05"];
-  // Default hardware layout — research/codex-micro-agent-key-assignment.md.
-  const COMMAND_KEYS = [
-    { key: "ACT06", cap: "FAST" },
-    { key: "ACT07", cap: "APPR" },
-    { key: "ACT08", cap: "REJ" },
-    { key: "ACT09", cap: "SPLIT" },
-    { key: "ACT10_ACT11", cap: "MIC" },
-    { key: "ACT12", cap: "CODEX" },
-  ];
-  const STATUSES = ["off", "idle", "unread", "working",
-    "awaiting-approval", "awaiting-response", "error"];
+  // runtime code with Node; it receives state as JSON over a WebSocket,
+  // and the hello message carries the key and status lists, so those
+  // live in one place on the server side.
   const LOG_LIMIT = 200;
 
   const $ = (id) => document.getElementById(id);
 
-  /* ── Build the keypad ── */
+  /* ── Build the keypad and driver panel from the hello layout ── */
+  let layout;
+
   const makeKey = ({ key, cap }) => {
     const button = document.createElement("button");
     button.className = "key fx-off";
@@ -250,24 +242,27 @@
       (cap === key ? "" : `<span class="sub-id">${key}</span>`);
     return button;
   };
-  for (const key of AGENT_KEYS)
-    $("agent-row").append(makeKey({ key, cap: key }));
-  for (const entry of COMMAND_KEYS) $("cmd-row").append(makeKey(entry));
 
-  /* ── Build the driver panel ── */
-  for (let slot = 0; slot < 6; slot++) {
-    const row = document.createElement("tr");
-    row.innerHTML = `<td>${AGENT_KEYS[slot]}</td>
-      <td><select data-slot="${slot}">${STATUSES.map(
-        (s) => `<option>${s}</option>`).join("")}</select></td>
-      <td><input type="radio" name="selected" data-slot="${slot}" /></td>
-      <td><input type="checkbox" data-slot="${slot}" /></td>`;
-    $("driver-rows").append(row);
-  }
-  const noneRow = document.createElement("tr");
-  noneRow.innerHTML = `<td colspan="2">no selection</td>
-    <td><input type="radio" name="selected" data-slot="-1" checked /></td><td></td>`;
-  $("driver-rows").append(noneRow);
+  const build = (next) => {
+    layout = next;
+    $("agent-row").replaceChildren(
+      ...layout.agentKeys.map((key) => makeKey({ key, cap: key })));
+    $("cmd-row").replaceChildren(...layout.commandKeys.map(makeKey));
+
+    const rows = layout.agentKeys.map((key, slot) => {
+      const row = document.createElement("tr");
+      row.innerHTML = `<td>${key}</td>
+        <td><select data-slot="${slot}">${layout.statuses.map(
+          (s) => `<option>${s}</option>`).join("")}</select></td>
+        <td><input type="radio" name="selected" data-slot="${slot}" /></td>
+        <td><input type="checkbox" data-slot="${slot}" /></td>`;
+      return row;
+    });
+    const noneRow = document.createElement("tr");
+    noneRow.innerHTML = `<td colspan="2">no selection</td>
+      <td><input type="radio" name="selected" data-slot="-1" checked /></td><td></td>`;
+    $("driver-rows").replaceChildren(...rows, noneRow);
+  };
 
   /* ── WebSocket ── */
   let ws;
@@ -284,6 +279,7 @@
     ws.onmessage = (event) => {
       const message = JSON.parse(event.data);
       if (message.type === "hello") {
+        build(message.layout);
         $("log").replaceChildren();
         for (const entry of message.log) appendLog(entry);
         paintState(message.state);
@@ -298,13 +294,12 @@
 
   /* ── Key presses: press on pointerdown, release on pointerup ── */
   const held = new Set();
-  document.querySelectorAll("button.key").forEach((button) => {
-    const key = button.dataset.key;
-    button.addEventListener("pointerdown", () => {
-      held.add(key);
-      button.classList.add("held");
-      send({ type: "key", key, act: 1 });
-    });
+  document.addEventListener("pointerdown", (event) => {
+    const button = event.target.closest("button.key");
+    if (!button) return;
+    held.add(button.dataset.key);
+    button.classList.add("held");
+    send({ type: "key", key: button.dataset.key, act: 1 });
   });
   const releaseAll = () => {
     for (const key of held) {
@@ -361,10 +356,14 @@
   };
 
   const paintState = (state) => {
-    for (const key of AGENT_KEYS)
+    if (!layout) return;
+    for (const key of layout.agentKeys)
       paintZone(document.querySelector(`[data-key="${key}"]`), state.slots[key]);
     paintZone($("ring"), state.ambient);
-    for (const { key } of COMMAND_KEYS)
+    // The keys backlight paints the command keycaps. Whether it also
+    // sits under the agent keys on real hardware is unknown (LED
+    // geometry is unread); the agent keys keep their per-slot lighting.
+    for (const { key } of layout.commandKeys)
       paintZone(document.querySelector(`[data-key="${key}"]`), state.keys);
   };
 
