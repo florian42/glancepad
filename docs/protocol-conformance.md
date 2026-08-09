@@ -81,8 +81,14 @@ exists so one hardware session can clear this column.
 | 36 | Color `error` | `0xFF0033` | same | read |
 | 37 | Color `off` | `0x000000` | same | read |
 | 38 | Effect enum | 0 off, 1 solid, 2 snake, 3 rainbow, 4 breath, 5 gradient, 6 shallowBreath | `OAI` `oai_lighting_effect.d.ts` | read |
+| 39 | Key event payload | `{key, act}` | `OAI` `hid_key.d.ts` | read |
+| 40 | Joystick payload | `{angle, distance}`, polar, both normalized 0–1 | `OAI` `joystick_pos.d.ts` | read |
+| 41 | Encoder press | key id starts with `ENC`; `act` `1` press, `0` release | `SVC` | read |
+| 42 | Lighting zones | `ambient` ring and `keys` backlight | `OAI` `oai_lighting_config.d.ts` | read |
+| 43 | `brightness` and `speed` | normalized 0–1 | `OAI` `oai_lighting_side.d.ts` | read |
+| 44 | Per-agent-key lighting | a separate thread-lighting array | `OAI` `thread_lighting.d.ts` | read |
 
-The earlier bundle reading established items 27–38
+The earlier bundle reading established items 27–44
 (`research/virtual-device-options.md` §4). The cold re-derivation
 covered framing and the RPC layer, not these.
 
