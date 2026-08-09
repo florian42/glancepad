@@ -43,7 +43,7 @@ export function rawReport(channel: number, payload: string): Uint8Array {
   report[0] = REPORT_ID;
   report[1] = channel;
   report[2] = bytes.length;
-  report.set(bytes, 3);
+  report.set(bytes, PAYLOAD_OFFSET);
   return report;
 }
 

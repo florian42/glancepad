@@ -83,12 +83,13 @@ serialization, every non-ASCII character is escaped as `\uXXXX` (one
 escape per UTF-16 code unit), so the outgoing wire text is pure ASCII.
 
 **Receiving.** Message boundaries come from JSON completeness, above
-the line split of §4: when nothing is pending, text before the first
-`{` in a line is discarded and a line without `{` is ignored; lines
-then accumulate until the collected text parses as JSON. A receiver
-accepts the compact key aliases `m` (method), `p` (params), and `i`
-(id). A message with a `method` and no id is a notification; with both,
-a request; with an id and a `result` or `error` member, a response.
+the line split of §4. When nothing is pending, the receiver discards
+text before the first `{` in a line, and it ignores a line without
+`{`. It then accumulates lines until the collected text parses as
+JSON. A receiver accepts the compact key aliases `m` (method), `p`
+(params), and `i` (id). A message with a `method` and no id is a
+notification; with both, a request; with an id and a `result` or
+`error` member, a response.
 
 Rules and constants:
 

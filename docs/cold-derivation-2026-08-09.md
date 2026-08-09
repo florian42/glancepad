@@ -11,23 +11,35 @@ derivations.
 ## Outcome
 
 The two derivations agree on the complete framing algorithm and on
-every constant: the 64-byte report, report id `6`, the channel byte,
-the length byte, payload at byte 3, zero padding, the 61-byte fragment
-limit, the absence of sequence headers, the `\r?\n` receive split with
-per-channel buffers, the `{method, params, id}` request shape without a
-`jsonrpc` member, the `[0, 999)` id range, the 10 000 ms timeout, the
-50 ms send cooldown, the `\uXXXX` escaping, and the bare host-to-device
-send. The derivation also confirmed two asymmetries independently: the
-host appends no terminator, and only the receive path proves the
+every constant:
+
+- the 64-byte report: id `6`, channel byte, length byte, payload at
+  byte 3, zero padding
+- the 61-byte fragment limit, with no sequence headers
+- the `\r?\n` receive split, with independent per-channel buffers
+- the `{method, params, id}` request shape, without a `jsonrpc` member
+- the `[0, 999)` id range, the 10 000 ms timeout, the 50 ms send
+  cooldown, and the `\uXXXX` escaping
+- the bare host-to-device send
+
+The derivation also confirmed two asymmetries independently: the host
+appends no terminator, and only the receive path proves the
 device-to-host `\n`.
 
-## The vectors it wrote
+## Direct confirmation of the committed vectors
 
-The agent framed the given strings exactly as the vendor sender does:
-bare, with no terminator. Our committed vectors in `test/vectors.json`
-frame the same strings as terminated lines, and add one bare vector.
-The algorithms are identical; the two sets differ only by that input
-choice. Each line below is one full 64-byte report in hex.
+In a second pass, the agent applied its derived algorithm — and only
+that algorithm — to the exact inputs of our five committed vectors:
+the four terminated lines and the one bare request. Its output is
+byte-identical to every vector in `test/vectors.json`. The committed
+set therefore carries direct, independent byte-level confirmation, not
+only algorithm-level agreement.
+
+## The vectors it wrote first
+
+In its first pass, the agent framed the given strings exactly as the
+vendor sender does: bare, with no terminator. Each line below is one
+full 64-byte report in hex.
 
 **Message A** — `{"jsonrpc":"2.0","id":1,"method":"device.status"}`:
 

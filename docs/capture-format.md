@@ -46,11 +46,11 @@ the comparison that verifies the implementation.
 
 1. Record a capture while the ChatGPT app drives the real keypad. A
    capture without out-reports still verifies decoding.
-2. Run the in-reports through our decoder. Every in-report must decode
-   ([protocol.md](protocol.md) §2). Debug-channel text must split into
-   lines (§4). Every RPC message must complete through the JSON
-   accumulation and parse as an RPC message (§5) — real traffic
-   carries no `jsonrpc` member.
+2. Run the in-reports through our decoder. The decoder must accept
+   every in-report ([protocol.md](protocol.md) §2). The line split
+   must yield the debug lines (§4). The JSON accumulation must
+   complete each RPC message, and each message must parse (§5). Real
+   traffic carries no `jsonrpc` member.
 3. Re-encode the decoded out-messages with `encodeFrames` and compare
    the bytes with the captured out-reports. Remember the asymmetry
    (§3): out-messages are bare, with no trailing newline. A difference
