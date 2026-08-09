@@ -12,8 +12,8 @@ import { WebSocketServer } from "ws";
 import {
   AGENT_KEYS,
   CHANNEL_RPC,
-  type CommandKey,
   COMMAND_KEYS,
+  type CommandKey,
   deriveLightingConfig,
   deriveThreadsLighting,
   encodeFrames,
