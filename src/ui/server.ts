@@ -289,8 +289,10 @@ export async function startSimulatorServer(
     });
   });
 
+  // Loopback only: the panel injects key events and must not be
+  // reachable from the network.
   await new Promise<void>((resolve) =>
-    httpServer.listen(options.port, resolve),
+    httpServer.listen(options.port, "127.0.0.1", resolve),
   );
   const address = httpServer.address();
   const port =
