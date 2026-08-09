@@ -24,6 +24,41 @@ with `git push origin HEAD:main`.)
 - `research/reference/` — extracted vendor type definitions. **Local only,
   never committed.** See "Third-party code" below.
 
+## Stack and conventions
+
+Decided 2026-08-09, before the first line of code. Follow these rather
+than re-deciding them.
+
+- **TypeScript on Node 22+**, ESM everywhere (`"type": "module"`), target
+  ES2022, `NodeNext` resolution, `tsc` in strict mode.
+- **pnpm**, a **single package**. A workspace is the likely end state, and
+  splitting later is cheap.
+- **Vitest** for tests. **Biome** for lint and format, one tool, minimal
+  configuration.
+- **No bundler.** The browser page shares no runtime code with Node — it
+  receives state as JSON over a WebSocket. One HTML file with an inline
+  module script needs no build. Add Vite only when the page earns it.
+- **One process.** A small HTTP and WebSocket server serves the page.
+  Headless mode is the same process with nobody connected. No Electron.
+- **Module layout**, and the rule that matters:
+
+  ```
+  src/
+    protocol/    pure. Imports nothing, performs no I/O.
+    device/      the transport interface, and the RPC client above it.
+    simulator/   the LED model and event emitter. No UI, no server.
+    ui/          the server and the browser page.
+  ```
+
+  `protocol/` importing nothing is what lets one code path serve the
+  simulator, the tests, and real hardware — see ADR-0001. `simulator/`
+  must not import `ui/`, which is what keeps headless mode real. Both
+  rules are enforced by lint and fail CI. Prefer Biome's restricted-import
+  overrides; fall back to `dependency-cruiser` if that shape does not work.
+- **Trunk-based, so the gate is local.** A `lefthook` pre-push hook runs
+  `tsc --noEmit`, `vitest run`, and `biome check`. CI repeats them as a
+  backstop. Keep the hook to seconds — every agent that pushes pays it.
+
 ## Working agreement
 
 **Write in Simplified Technical English.** ASD-STE100 rules apply to
