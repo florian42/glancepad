@@ -20,6 +20,9 @@ jobs:
       - uses: actions/setup-node@v5
         with:
           node-version: 22
+          # v5 defaults this to true, and it probes for pnpm before the
+          # corepack-enable step below has created it.
+          package-manager-cache: false
       - run: corepack enable
       - run: corepack pnpm install --frozen-lockfile
       - run: corepack pnpm run gate
