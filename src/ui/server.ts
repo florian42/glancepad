@@ -136,13 +136,19 @@ export async function startSimulatorServer(
   // serializes its sends through a queue for the same reason.
   let sendChain: Promise<void> = Promise.resolve();
   const sendRpc = (method: string, params: unknown): Promise<void> => {
-    sendChain = sendChain.then(async () => {
-      const text = encodeRequest(requestId, method, params);
-      requestId = nextRequestId(requestId);
-      for (const report of encodeFrames(CHANNEL_RPC, text)) {
-        await device.send(report);
-      }
-    });
+    sendChain = sendChain
+      .then(async () => {
+        const text = encodeRequest(requestId, method, params);
+        requestId = nextRequestId(requestId);
+        for (const report of encodeFrames(CHANNEL_RPC, text)) {
+          await device.send(report);
+        }
+      })
+      // A failed send must not jam the chain, and callers discard the
+      // returned promise — report here and keep the chain settled.
+      .catch((error) => {
+        console.error(`lighting push failed: ${String(error)}`);
+      });
     return sendChain;
   };
 
@@ -269,6 +275,7 @@ export async function startSimulatorServer(
             agentKeys: AGENT_KEYS,
             commandKeys: COMMAND_KEY_LAYOUT,
             statuses: Object.keys(STATUS_COLORS),
+            logLimit: FRAME_LOG_LIMIT,
           },
           state: dumpState(device.lighting),
           driver: driverDump(),

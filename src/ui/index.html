@@ -225,10 +225,8 @@
 <script type="module">
   // Message shapes come from src/ui/server.ts. The page shares no
   // runtime code with Node; it receives state as JSON over a WebSocket,
-  // and the hello message carries the key and status lists, so those
-  // live in one place on the server side.
-  const LOG_LIMIT = 200;
-
+  // and the hello message carries the key lists, statuses, and the log
+  // limit, so those live in one place on the server side.
   const $ = (id) => document.getElementById(id);
 
   /* ── Build the keypad and driver panel from the hello layout ── */
@@ -401,7 +399,8 @@
       </div>`;
     const stick = log.scrollTop + log.clientHeight >= log.scrollHeight - 8;
     log.append(item);
-    while (log.children.length > LOG_LIMIT) log.firstChild.remove();
+    const limit = layout?.logLimit ?? 200;
+    while (log.children.length > limit) log.firstChild.remove();
     if (stick) log.scrollTop = log.scrollHeight;
   };
 
