@@ -457,10 +457,10 @@ one in a single sentence; this table paraphrases them:
 |---|---|---|
 | 0 | `off` | The LEDs are off |
 | 1 | `solid` | One static color |
-| 2 | `snake` | A colored segment travels along the strip |
+| 2 | `snake` | One lit band moves around the zone, and the rest stays dark |
 | 3 | `rainbow` | The hue cycles continuously |
 | 4 | `breath` | The brightness fades in and out |
-| 5 | `gradient` | A gradient spans the strip |
+| 5 | `gradient` | The color changes smoothly from one end of the zone to the other |
 | 6 | `shallowBreath` | The same fade, but the floor is 0.5 rather than 0 |
 
 `brightness` and `speed` are normalized 0–1. `color` is a packed RGB
@@ -505,7 +505,7 @@ not at all, until something needs them.
 
 | Unknown | Why it matters |
 |---|---|
-| **LED count and geometry per zone.** How many LEDs form the ambient ring? Is the per-key LED a single pixel? | `snake` and `gradient` "travel across the LED strip". Without a pixel count, the travel looks wrong. |
+| **LED count and geometry per zone.** How many LEDs form the ambient ring? Is the per-key LED a single pixel? | `snake` and `gradient` both spread along the zone's pixels. Without a pixel count, the movement looks wrong. |
 | **The `speed` curve.** `speed = 0.4` is the only value the app ever sends. What period does 0.4 produce in milliseconds? | The animation will look faster or slower than the real device. |
 | **The `breath` curve.** Sine, triangle, or gamma-corrected? What is the floor brightness? | `shallowBreath` is documented as floor 0.5, which implies `breath` has a lower floor — probably 0. That is an inference, not a fact. |
 | **Snake segment width and direction.** | Purely cosmetic, but it affects whether a human recognizes the state at a glance. |
@@ -537,7 +537,7 @@ Build a **GUI simulator at the library level**, in three layers.
 **1. Define our own transport interface and implement two of them.**
 Model it on `WLDeviceComm`, but write it ourselves — the Work Louder
 package is proprietary and we cannot depend on it (§2). Give it the same
-9-method shape. Ship a real HID implementation and a simulator
+four-member shape from §1. Ship a real HID implementation and a simulator
 implementation.
 
 **2. Put the seam below the framing, not above it.** Have the simulator

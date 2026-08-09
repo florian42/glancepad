@@ -22,7 +22,7 @@ with `git push origin HEAD:main`.)
 - `research/virtual-device-options.md` — why we build our own simulator,
   the recovered wire protocol, and the recommended seam
 - `research/reference/` — extracted vendor type definitions. **Local only,
-  git-ignored, never committed.** See "Third-party code" below.
+  never committed.** See "Third-party code" below.
 
 ## Working agreement
 
@@ -85,8 +85,11 @@ absent from public npm. We therefore speak the protocol ourselves.
 The rules:
 
 - Never commit vendor source, vendor type definitions, or files extracted
-  from `app.asar`. `research/reference/` and `vendor-oracle/` stay
-  git-ignored and local.
+  from `app.asar`. `research/reference/` and `vendor-oracle/` stay local
+  and untracked. The exclude rule lives in `.git/info/exclude`, not in
+  `.gitignore`, so a public clone carries no pointer to them. **After a
+  fresh clone, add those two paths to `.git/info/exclude` before you run
+  `git add -A`.**
 - Describe protocol facts in our own words, and cite where each fact
   lives. A byte layout is a fact. A copied file is not.
 - Never add `@worklouder/*` as a dependency.
