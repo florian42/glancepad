@@ -1,0 +1,54 @@
+{
+  "$source": "Derived from docs/protocol.md §10 by rule §2–§3",
+  "vectors": [
+    {
+      "name": "rpc-sub-frame",
+      "channel": 2,
+      "message": "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"device.status\"}",
+      "terminated": true,
+      "reports": [
+        "0602327b226a736f6e727063223a22322e30222c226964223a312c226d6574686f64223a226465766963652e737461747573227d0a0000000000000000000000"
+      ]
+    },
+    {
+      "name": "rpc-exact-frame",
+      "channel": 2,
+      "message": "{\"jsonrpc\":\"2.0\",\"id\":42,\"method\":\"mmmmmmmmmmmmmmmmmmmmmmm\"}",
+      "terminated": true,
+      "reports": [
+        "06023d7b226a736f6e727063223a22322e30222c226964223a34322c226d6574686f64223a226d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d227d0a"
+      ]
+    },
+    {
+      "name": "rpc-multi-frame",
+      "channel": 2,
+      "message": "{\"jsonrpc\":\"2.0\",\"id\":7,\"method\":\"sendThreadsLighting\",\"params\":{\"threads\":[{\"color\":3166206,\"brightness\":1,\"effect\":1,\"speed\":0,\"syncKeysLighting\":false,\"syncAmbientLighting\":false},{\"color\":65356,\"brightness\":0.5,\"effect\":4,\"speed\":0.4,\"syncKeysLighting\":false,\"syncAmbientLighting\":false}]}}",
+      "terminated": true,
+      "reports": [
+        "06023d7b226a736f6e727063223a22322e30222c226964223a372c226d6574686f64223a2273656e64546872656164734c69676874696e67222c22706172616d",
+        "06023d73223a7b2274687265616473223a5b7b22636f6c6f72223a333136363230362c226272696768746e657373223a312c22656666656374223a312c227370",
+        "06023d656564223a302c2273796e634b6579734c69676874696e67223a66616c73652c2273796e63416d6269656e744c69676874696e67223a66616c73657d2c",
+        "06023d7b22636f6c6f72223a36353335362c226272696768746e657373223a302e352c22656666656374223a342c227370656564223a302e342c2273796e634b",
+        "0602336579734c69676874696e67223a66616c73652c2273796e63416d6269656e744c69676874696e67223a66616c73657d5d7d7d0a00000000000000000000"
+      ]
+    },
+    {
+      "name": "debug-line",
+      "channel": 1,
+      "message": "boot ok",
+      "terminated": true,
+      "reports": [
+        "060108626f6f74206f6b0a0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"
+      ]
+    },
+    {
+      "name": "rpc-request-bare",
+      "channel": 2,
+      "message": "{\"method\":\"device.status\",\"params\":null,\"id\":1}",
+      "terminated": false,
+      "reports": [
+        "06022f7b226d6574686f64223a226465766963652e737461747573222c22706172616d73223a6e756c6c2c226964223a317d0000000000000000000000000000"
+      ]
+    }
+  ]
+}
