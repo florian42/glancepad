@@ -19,8 +19,10 @@ with `git push origin HEAD:main`.)
   replicate, with exact transitions and timing constants
 - `research/codex-micro-agent-key-assignment.md` — how agent keys are
   assigned to threads
-- `research/reference/` — extracted `@worklouder/device-kit-oai` device
-  protocol type definitions (JSON-RPC over HID/serial)
+- `research/virtual-device-options.md` — why we build our own simulator,
+  the recovered wire protocol, and the recommended seam
+- `research/reference/` — extracted vendor type definitions. **Local only,
+  git-ignored, never committed.** See "Third-party code" below.
 
 ## Working agreement
 
@@ -72,6 +74,30 @@ this machine need explicit authorization each time.
 
 **Report signal.** Blockers, outcomes, and the evidence behind them.
 Progress narration is not an outcome.
+
+## Third-party code
+
+**This repository will become public. It must contain no OpenAI or Work
+Louder code.** `@worklouder/device-kit-oai` and `@worklouder/wl-device-kit`
+are proprietary — "All Rights Reserved", private GitHub Packages feed, and
+absent from public npm. We therefore speak the protocol ourselves.
+
+The rules:
+
+- Never commit vendor source, vendor type definitions, or files extracted
+  from `app.asar`. `research/reference/` and `vendor-oracle/` stay
+  git-ignored and local.
+- Describe protocol facts in our own words, and cite where each fact
+  lives. A byte layout is a fact. A copied file is not.
+- Never add `@worklouder/*` as a dependency.
+- Short quotations in research documents are acceptable. Wholesale copies
+  are not.
+
+**Enforcement — run this before every push.** Spawn a subagent with a
+fresh context (do not fork the current one, because a fork inherits your
+assumptions). Give it the diff you are about to push and one job: find
+proprietary third-party content. Push only after it reports none. CI
+repeats a blunt marker scan, but the subagent is the real gate.
 
 ## Agent skills
 
