@@ -4,12 +4,20 @@ on:
   push:
     branches: [main]
 
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   gate:
     runs-on: ubuntu-latest
+    env:
+      # Local runs keep fast-check's default 100 runs per property; CI
+      # probes the input space more deeply. See test/helpers.ts.
+      FC_NUM_RUNS: 1000
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
         with:
           node-version: 22
       - run: corepack enable
@@ -19,7 +27,11 @@ jobs:
   proprietary-markers:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
+        with:
+          # Full history, so the scan below covers every reachable
+          # commit, not only HEAD.
+          fetch-depth: 0
       - name: No vendor-derived files may be tracked
         run: |
           set -e
@@ -31,4 +43,10 @@ jobs:
           fi
           if grep -n '@worklouder' package.json pnpm-lock.yaml; then
             echo "::error::@worklouder must never be a dependency"; exit 1
+          fi
+      - name: No vendor-derived path may exist anywhere in history
+        run: |
+          set -e
+          if git log --all --oneline -- research/reference vendor-oracle '*.asar' | grep .; then
+            echo "::error::a vendor-derived path is reachable in history; it must be purged before the repository goes public"; exit 1
           fi

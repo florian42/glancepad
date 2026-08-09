@@ -15,6 +15,13 @@ import {
   type ReassemblyState,
 } from "../src/protocol/index.js";
 
+// CI sets FC_NUM_RUNS to deepen the property search; locally the
+// fast-check default (100 runs per property) keeps the suite fast.
+const numRuns = Number(process.env.FC_NUM_RUNS);
+if (Number.isInteger(numRuns) && numRuns > 0) {
+  fc.configureGlobal({ numRuns });
+}
+
 export const channelArb = fc.constantFrom<Channel>(CHANNEL_DEBUG, CHANNEL_RPC);
 
 // Any line content, ASCII or multi-byte, without a line terminator.
