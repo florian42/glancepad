@@ -88,7 +88,7 @@ exists so one hardware session can clear this column.
 | 43 | `brightness` and `speed` | normalized 0–1 | `OAI` `oai_lighting_side.d.ts` | read |
 | 44 | Per-agent-key lighting | a separate thread-lighting array | `OAI` `thread_lighting.d.ts` | read |
 | 45 | Threads-lighting method | `v.oai.thstatus` | `OAI` `rpc_api_oai.js`, `VendorJsonRpcMethods` | read |
-| 46 | Threads-lighting params | a bare array of `{id, c?, b?, e?, s?, sk?, sa?}`; sync flags sent as `0`/`1`, members omitted when unset | `OAI` `rpc_api_oai.js`, `sendThreadsLighting` | read |
+| 46 | Threads-lighting params | a bare array of `{id, c?, b?, e?, s?, sk?, sa?}`; sync flags sent as `0`/`1`, members omitted when unset; the API documentation says an omitted member stays unchanged on the device — a doc claim, since the firmware is unread | `OAI` `rpc_api_oai.js`; retention: its doc comment on `sendThreadsLighting` | read |
 | 47 | Zone-config method | `v.oai.rgbcfg` | `OAI` `rpc_api_oai.js`, `VendorJsonRpcMethods` | read |
 | 48 | Zone-config params | `{ambient, keys}`, each `{e, b, s, m, c}`; `m` is always `0`, meaning unknown | `OAI` `rpc_api_oai.js`, `minimizeLightingSide` | read |
 | 49 | Per-slot lighting rules | `off` → all zero; selected or pulsing → `breath` at speed 0.4; otherwise `solid`; sync flags always false | `SVC` payload builders; `research/virtual-device-options.md` §6 | read |

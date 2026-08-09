@@ -24,9 +24,10 @@ export interface WireZone {
 }
 
 /**
- * One per-slot entry on the wire. Only `id` is required; an omitted
- * member leaves that aspect unchanged on the device. `sk` and `sa`
- * mirror the sync flags as 0 or 1.
+ * One per-slot entry on the wire. Only `id` is required; per the vendor
+ * API documentation an omitted member leaves that aspect unchanged on
+ * the device (conformance item 46 — the firmware itself is unread).
+ * `sk` and `sa` mirror the sync flags as 0 or 1.
  */
 export interface WireThreadLighting {
   readonly id: number;

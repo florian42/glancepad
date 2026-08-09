@@ -165,8 +165,9 @@ Two request methods carry all lighting
 - **`v.oai.thstatus`** — per-agent-key lighting. The params member is a
   bare array of entries `{id, c, b, e, s, sk, sa}`: slot id, packed RGB
   color, brightness, effect, speed, and the two sync flags as `0` or
-  `1`. Only `id` is required; an omitted member leaves that aspect
-  unchanged on the device.
+  `1`. Only `id` is required. The vendor API documentation states that
+  an omitted member leaves that aspect unchanged on the device; the
+  firmware itself is unread (item 46).
 - **`v.oai.rgbcfg`** — the two zones. The params member is
   `{ambient, keys}`, each zone `{e, b, s, m, c}`: effect, brightness,
   speed, magic, packed RGB color. The vendor host always sends `m: 0`;
