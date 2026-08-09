@@ -14,6 +14,7 @@ import {
   encodeResponse,
   feedRpcLine,
   initialRpcAccumulator,
+  isValidRequestId,
   KEY_ACTS,
   METHOD_LIGHTING_CONFIG,
   METHOD_THREADS_LIGHTING,
@@ -88,7 +89,8 @@ export class SimulatedDevice implements DeviceTransport {
       if (result !== undefined) {
         decoded.push(result.raw);
         if (result.ok && result.message.kind === "request") {
-          replies.push(this.#handleRequest(result.message));
+          const reply = this.#handleRequest(result.message);
+          if (reply !== undefined) replies.push(reply);
         }
       }
     }
@@ -139,8 +141,14 @@ export class SimulatedDevice implements DeviceTransport {
     this.#transmit(encodeNotification(NOTIFY_KEYS, { key, act }));
   }
 
-  /** Handles one request; returns the response text to transmit. */
-  #handleRequest(request: RpcRequest): string {
+  /**
+   * Handles one request; returns the response text to transmit, or
+   * `undefined` for a request the device drops. The firmware rejects
+   * ids outside [0, 999); how it answers them is unread, so the
+   * simulated device drops such requests without a response.
+   */
+  #handleRequest(request: RpcRequest): string | undefined {
+    if (!isValidRequestId(request.id)) return undefined;
     if (request.method === METHOD_THREADS_LIGHTING) {
       const entries = parseThreadsParams(request.params);
       if (entries === undefined) return invalidParams(request.id);

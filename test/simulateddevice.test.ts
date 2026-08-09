@@ -139,6 +139,17 @@ describe("request handling at the edges", () => {
     expect(device.lighting.slots[0]?.color).toBe(0);
   });
 
+  it("drops a request with an id the firmware would reject", async () => {
+    const device = new SimulatedDevice();
+    const events: FrameEvent[] = [];
+    device.onFrame((event) => events.push(event));
+    const out = collect(device);
+    // encodeRequest refuses invalid ids, so build the text by hand.
+    await sendRpc(device, '{"method":"v.oai.thstatus","params":[],"id":999}');
+    expect(out.reports).toHaveLength(0);
+    expect(events.at(-1)?.decoded).toHaveLength(1);
+  });
+
   it("ignores notifications and responses from the host", async () => {
     const device = new SimulatedDevice();
     const out = collect(device);
