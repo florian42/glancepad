@@ -1,8 +1,13 @@
-# codex-micro-claude-code-tui
+# glancepad
 
-Replicating the Codex Micro (OpenAI × Work Louder macro keypad) experience
-for Claude Code: device lighting driven by Claude Code session state,
-push-to-talk, and tap-to-open-session agent keys.
+Ambient status lighting and shortcuts for coding agents, on a Work Louder
+macro keypad: key lighting driven by agent session state, push-to-talk,
+and tap-to-open-session agent keys.
+
+**The project is independent and unofficial.** It is not affiliated with
+OpenAI, Work Louder, or Anthropic, and it contains no code from any of
+them. Name it `glancepad` in prose. Use the product names only to say what
+the project works with, or to cite a source. See `NOTICE`.
 
 ## Git workflow
 
