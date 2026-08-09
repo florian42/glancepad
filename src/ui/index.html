@@ -217,7 +217,7 @@
     </label>
   </section>
   <section class="log">
-    <h2>Frame log — every 64-byte report, last 200</h2>
+    <h2 id="log-title">Frame log</h2>
     <ol id="log"></ol>
   </section>
 </main>
@@ -260,6 +260,9 @@
     noneRow.innerHTML = `<td colspan="2">no selection</td>
       <td><input type="radio" name="selected" data-slot="-1" checked /></td><td></td>`;
     $("driver-rows").replaceChildren(...rows, noneRow);
+
+    $("log-title").textContent =
+      `Frame log — every 64-byte report, last ${layout.logLimit}`;
   };
 
   /* ── WebSocket ── */
@@ -399,8 +402,8 @@
       </div>`;
     const stick = log.scrollTop + log.clientHeight >= log.scrollHeight - 8;
     log.append(item);
-    const limit = layout?.logLimit ?? 200;
-    while (log.children.length > limit) log.firstChild.remove();
+    // Log entries only arrive after the hello builds the layout.
+    while (log.children.length > layout.logLimit) log.firstChild.remove();
     if (stick) log.scrollTop = log.scrollHeight;
   };
 

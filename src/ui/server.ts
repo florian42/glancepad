@@ -12,6 +12,7 @@ import { WebSocketServer } from "ws";
 import {
   AGENT_KEYS,
   CHANNEL_RPC,
+  type CommandKey,
   COMMAND_KEYS,
   deriveLightingConfig,
   deriveThreadsLighting,
@@ -47,7 +48,7 @@ const COMMAND_KEY_LAYOUT = [
   { key: "ACT09", cap: "SPLIT" },
   { key: "ACT10_ACT11", cap: "MIC" },
   { key: "ACT12", cap: "CODEX" },
-] as const;
+] as const satisfies readonly { key: CommandKey; cap: string }[];
 
 interface FrameLogEntry {
   readonly direction: "host-to-device" | "device-to-host";
@@ -145,9 +146,11 @@ export async function startSimulatorServer(
         }
       })
       // A failed send must not jam the chain, and callers discard the
-      // returned promise — report here and keep the chain settled.
+      // returned promise — report here and keep the chain settled. A
+      // failure mid-message still leaves a partial fragment in the
+      // device-side accumulator; a real transport owes a resync there.
       .catch((error) => {
-        console.error(`lighting push failed: ${String(error)}`);
+        console.error("lighting push failed:", error);
       });
     return sendChain;
   };
