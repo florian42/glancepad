@@ -5,8 +5,8 @@ desktop app (Microsoft Store package `OpenAI.Codex` v26.803.5235.0).*
 
 *See also: [codex-micro-state-machines.md](codex-micro-state-machines.md)
 for a detailed reverse-engineering of every state machine in the
-integration, and [reference/](reference/) for the extracted device
-protocol type definitions.*
+integration. The extracted vendor type definitions live in
+`research/reference/`, which is local only and deliberately not in git.*
 
 ## What it is
 
@@ -46,8 +46,7 @@ A Node package using **`node-hid` + `@serialport`** natively, speaking
 `hid-topology-watcher.node` module. Firmware updates go through a
 `WLDeviceProgrammer` (firmware id `CMicroV2Firmware`).
 
-The typed API (`RPCApiOAI`, see [`reference/`](reference/) for extracted
-`.d.ts` files):
+The typed API (`RPCApiOAI`):
 
 | Method / channel | Purpose |
 |---|---|

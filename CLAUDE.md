@@ -40,7 +40,7 @@ project needs is reverse-engineered from a closed device — a guess in a
 confident voice is the expensive failure here.
 
 **Ground research in primary sources.** Prefer the device-kit type
-definitions in `research/reference/`, vendor and Claude Code docs, and
+definitions in `research/reference/` (local only), vendor and Claude Code docs, and
 observed device traffic over recollection. Link the evidence inline so
 the next session can re-check it, and flag sources that are dated or
 contradicted.

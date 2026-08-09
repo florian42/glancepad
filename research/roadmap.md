@@ -24,4 +24,4 @@ the device calm (see codex-micro-agent-key-assignment.md).
 Key protocol facts: JSON-RPC over HID/serial via
 `@worklouder/device-kit-oai` (`sendThreadsLighting`,
 `sendLightingConfig`, notifications `v.oai.hid` + `v.oai.rad`);
-type definitions in [reference/](reference/).
+type definitions in `research/reference/` (local only, not in git).
