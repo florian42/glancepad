@@ -1,0 +1,27 @@
+{
+  "name": "glancepad",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "packageManager": "pnpm@11.20.0",
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "lint": "biome check .",
+    "lint:deps": "depcruise src",
+    "gate": "tsc --noEmit && vitest run && biome check . && depcruise src",
+    "prepare": "lefthook install"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^2.5.7",
+    "@types/node": "^26.2.0",
+    "dependency-cruiser": "^18.1.1",
+    "fast-check": "^4.9.0",
+    "lefthook": "^2.1.10",
+    "typescript": "^6.0.3",
+    "vitest": "^4.1.10"
+  }
+}
