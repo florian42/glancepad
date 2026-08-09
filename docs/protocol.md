@@ -46,9 +46,9 @@ character may span two reports.
 
 The two directions terminate messages differently:
 
-- **Host to device**: an RPC message is sent bare, with **no trailing
-  newline**. The vendor host frames exactly the JSON text and nothing
-  more. (In practice the text is also pure ASCII — see §5.)
+- **Host to device**: the host sends an RPC message bare, with **no
+  trailing newline**. The vendor host frames exactly the JSON text and
+  nothing more. (In practice the text is also pure ASCII — see §5.)
 - **Device to host**: each message is one line, terminated by `\n`. The
   host receiver delivers text only after a line terminator arrives, so
   this direction must terminate. We infer this from the host's receive
@@ -61,14 +61,15 @@ Text whose encoded form is 61 bytes or fewer fits in one report. A
 
 The receiver keeps one byte buffer **per channel**. For each report it
 appends the payload bytes to that channel's buffer. It then splits the
-buffer on the pattern `\r?\n`: every complete line is delivered, and the
-bytes after the last line terminator stay in the buffer. Channels never
-share a buffer, so debug and RPC traffic reassemble independently and
-never interleave.
+buffer on the pattern `\r?\n`. It delivers every complete line, and it
+keeps the bytes after the last line terminator in the buffer. Channels
+never share a buffer, so debug and RPC traffic reassemble independently
+and never interleave.
 
-The receiver accepts `\r\n` as a terminator; the sender emits only `\n`.
-Buffered bytes are decoded as UTF-8 only when a complete line is
-delivered, so split multi-byte characters reassemble correctly.
+The receiver accepts `\r\n` as a terminator; the sender emits only
+`\n`. The receiver decodes buffered bytes as UTF-8 only when it
+delivers a complete line, so split multi-byte characters reassemble
+correctly.
 
 ## 5. RPC layer
 
@@ -79,8 +80,9 @@ debug channel (1) are free-form log text and are not parsed as JSON.
 **Requests (host to device).** The wire shape is
 `{"method": M, "params": P, "id": N}` in that member order. `params` is
 always present — `null` when the call has no parameters. After JSON
-serialization, every non-ASCII character is escaped as `\uXXXX` (one
-escape per UTF-16 code unit), so the outgoing wire text is pure ASCII.
+serialization, the sender escapes every non-ASCII character as `\uXXXX`
+(one escape per UTF-16 code unit), so the outgoing wire text is pure
+ASCII.
 
 **Receiving.** Message boundaries come from JSON completeness, above
 the line split of §4. When nothing is pending, the receiver discards
@@ -105,7 +107,7 @@ Rules and constants:
   `WRITE_FAILED`, `DEVICE_DISCONNECTED`.
 
 **Compatibility note.** The vendor host decodes each report's payload
-as UTF-8 on arrival, fragment by fragment, so a multi-byte character
+as UTF-8 on arrival, fragment by fragment. A multi-byte character
 split across two reports would corrupt there. Its ASCII escaping makes
 that unreachable for its own traffic. Our receiver buffers raw bytes
 per channel and decodes complete lines, which handles both ASCII and
