@@ -5,8 +5,7 @@ desktop app (Microsoft Store package `OpenAI.Codex` v26.803.5235.0).*
 
 *See also: [codex-micro-state-machines.md](codex-micro-state-machines.md)
 for a detailed reverse-engineering of every state machine in the
-integration. The extracted vendor type definitions live in
-`research/reference/`, which is local only and deliberately not in git.*
+integration.*
 
 ## What it is
 

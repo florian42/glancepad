@@ -7,10 +7,8 @@ package), the bundled `@worklouder/device-kit-oai` and
 repository, Microsoft driver documentation, and the Linux kernel HID
 documentation.*
 
-*Companion to [codex-micro-state-machines.md](codex-micro-state-machines.md),
-[codex-micro-agent-key-assignment.md](codex-micro-agent-key-assignment.md),
-and the type definitions in `research/reference/` (local only, not in
-git).*
+*Companion to [codex-micro-state-machines.md](codex-micro-state-machines.md)
+and [codex-micro-agent-key-assignment.md](codex-micro-agent-key-assignment.md).*
 
 ---
 
