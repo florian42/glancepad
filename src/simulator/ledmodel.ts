@@ -3,9 +3,10 @@
 // color, brightness, speed. It stores no LED count and no geometry,
 // because those are unknown; the renderer decides the visual details.
 
-import type {
-  WireLightingConfig,
-  WireThreadLighting,
+import {
+  AGENT_KEYS,
+  type WireLightingConfig,
+  type WireThreadLighting,
 } from "../protocol/index.js";
 
 /** One zone's stored state, in decoded member names. */
@@ -23,7 +24,7 @@ export const OFF_ZONE_STATE: ZoneState = {
   speed: 0,
 };
 
-export const SLOT_COUNT = 6;
+export const SLOT_COUNT = AGENT_KEYS.length;
 
 /** The six agent-key slots plus the two config zones. */
 export interface LedState {

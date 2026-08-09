@@ -30,6 +30,7 @@ import {
 import {
   type DeviceKey,
   type LedState,
+  OFF_ZONE_STATE,
   type SimulatedDevice,
   SLOT_COUNT,
   type ZoneState,
@@ -91,13 +92,10 @@ const zoneDump = (zone: ZoneState) => ({
 export function dumpState(led: LedState) {
   return {
     slots: Object.fromEntries(
-      AGENT_KEYS.map((key, index) => {
-        const slot = led.slots[index];
-        return [
-          key,
-          zoneDump(slot ?? { effect: 0, color: 0, brightness: 0, speed: 0 }),
-        ];
-      }),
+      AGENT_KEYS.map((key, index) => [
+        key,
+        zoneDump(led.slots[index] ?? OFF_ZONE_STATE),
+      ]),
     ),
     ambient: zoneDump(led.ambient),
     keys: zoneDump(led.keys),
