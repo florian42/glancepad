@@ -1,7 +1,7 @@
 # Issue tracker: GitHub
 
 Issues and specs for this repo live as GitHub issues in
-`florian42/codex-micro-claude-code-tui`. Use the `gh` CLI for all operations.
+`florian42/glancepad`. Use the `gh` CLI for all operations.
 
 ## Conventions
 

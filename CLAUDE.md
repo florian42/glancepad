@@ -146,7 +146,7 @@ repeats a blunt marker scan, but the subagent is the real gate.
 
 ### Issue tracker
 
-Issues live as GitHub issues in `florian42/codex-micro-claude-code-tui`,
+Issues live as GitHub issues in `florian42/glancepad`,
 driven by the `gh` CLI. See `docs/agents/issue-tracker.md`.
 
 ### Triage labels
