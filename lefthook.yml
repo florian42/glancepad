@@ -1,4 +1,4 @@
 pre-push:
   commands:
     gate:
-      run: corepack pnpm run gate
+      run: pnpm run gate
