@@ -1,6 +1,6 @@
 /**
  * Enforces the two module-boundary rules from CLAUDE.md ("Stack and
- * conventions"). Biome's noRestrictedImports blocks named modules only;
+ * conventions"), and the host-on-transport rule from issue #8. Biome's noRestrictedImports blocks named modules only;
  * it cannot express "imports nothing outside its own directory", so
  * dependency-cruiser is the documented fallback.
  */
@@ -29,6 +29,14 @@ module.exports = {
       severity: "error",
       from: { path: "^src/simulator" },
       to: { path: "^src/ui" },
+    },
+    {
+      name: "device-transport-only",
+      comment:
+        "src/device (the transport seam and the host) must not import src/simulator or src/ui — the host drives any DeviceTransport, so real hardware can replace the simulator (issue #8).",
+      severity: "error",
+      from: { path: "^src/device" },
+      to: { path: "^src/(simulator|ui)" },
     },
   ],
   options: {

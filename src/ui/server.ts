@@ -1,29 +1,23 @@
 // The simulator server: one process that owns the simulated device,
-// serves the browser page, and bridges it over a WebSocket. It also
-// plays the host role: the driver panel's slot statuses run through the
-// real derivation, framing, and transport code — the same byte path
-// hardware mode will use (ADR-0001). Headless mode is this same server
-// with no browser connected; `GET /state` serves the JSON dump.
+// serves the browser page, and bridges it over a WebSocket. It composes
+// the host (src/device/host.ts) with the simulated device: the driver
+// panel's slot statuses run through the real derivation, framing, and
+// transport code — the same byte path hardware mode will use
+// (ADR-0001). The lighting and frame-log feeds exist only on the
+// simulator, so this server subscribes to them for its page. Headless
+// mode is this same server with no browser connected; `GET /state`
+// serves the JSON dump.
 
 import { readFile } from "node:fs/promises";
 import { createServer } from "node:http";
 import { join } from "node:path";
 import { WebSocketServer } from "ws";
+import { createHost } from "../device/host.js";
 import {
   AGENT_KEYS,
-  CHANNEL_RPC,
   COMMAND_KEYS,
   type CommandKey,
-  deriveLightingConfig,
-  deriveThreadsLighting,
-  encodeFrames,
-  encodeRequest,
   LIGHTING_EFFECTS,
-  METHOD_LIGHTING_CONFIG,
-  METHOD_THREADS_LIGHTING,
-  nextRequestId,
-  SELECTION_LIGHTING_MS,
-  type SlotSignal,
   type SlotStatus,
   STATUS_COLORS,
 } from "../protocol/index.js";
@@ -32,7 +26,6 @@ import {
   type LedState,
   OFF_ZONE_STATE,
   type SimulatedDevice,
-  SLOT_COUNT,
   type ZoneState,
 } from "../simulator/index.js";
 
@@ -114,54 +107,10 @@ export async function startSimulatorServer(
   device: SimulatedDevice,
   options: SimulatorServerOptions,
 ): Promise<SimulatorServer> {
-  // Host-side driver state: what the human set in the panel.
-  type DriverSlot = { -readonly [K in keyof SlotSignal]: SlotSignal[K] };
-  const slots: DriverSlot[] = Array.from({ length: SLOT_COUNT }, () => ({
-    status: "off",
-    selected: false,
-    pulsing: false,
-  }));
-  let brightness = 1;
-  let selectionVisible = false;
-  let selectionTimer: NodeJS.Timeout | undefined;
-  const selectionLightingMs =
-    options.selectionLightingMs ?? SELECTION_LIGHTING_MS;
-  let requestId = 0;
+  // The host owns the slot state and the send chain. The panel only
+  // drives it.
+  const host = createHost(device, options);
   const frameLog: FrameLogEntry[] = [];
-
-  // Sends are serialized on one chain. Two concurrent panel changes
-  // would otherwise interleave the reports of two RPC messages, and the
-  // device-side accumulator cannot untangle that. The vendor host
-  // serializes its sends through a queue for the same reason.
-  let sendChain: Promise<void> = Promise.resolve();
-  const sendRpc = (method: string, params: unknown): Promise<void> => {
-    sendChain = sendChain
-      .then(async () => {
-        const text = encodeRequest(requestId, method, params);
-        requestId = nextRequestId(requestId);
-        for (const report of encodeFrames(CHANNEL_RPC, text)) {
-          await device.send(report);
-        }
-      })
-      // A failed send must not jam the chain, and callers discard the
-      // returned promise — report here and keep the chain settled. A
-      // failure mid-message still leaves a partial fragment in the
-      // device-side accumulator; a real transport owes a resync there.
-      .catch((error) => {
-        console.error("lighting push failed:", error);
-      });
-    return sendChain;
-  };
-
-  const pushThreads = () =>
-    sendRpc(METHOD_THREADS_LIGHTING, deriveThreadsLighting(slots, brightness));
-  const pushConfig = () =>
-    sendRpc(
-      METHOD_LIGHTING_CONFIG,
-      deriveLightingConfig(slots, selectionVisible, brightness),
-    );
-
-  const driverDump = () => ({ slots, brightness, selectionVisible });
 
   const wss = new WebSocketServer({ noServer: true });
 
@@ -171,6 +120,10 @@ export async function startSimulatorServer(
       if (client.readyState === client.OPEN) client.send(text);
     }
   };
+
+  host.onDriver((driver) => {
+    broadcast({ type: "driver", driver });
+  });
 
   device.onLighting((state) => {
     broadcast({ type: "state", state: dumpState(state) });
@@ -191,25 +144,6 @@ export async function startSimulatorServer(
     broadcast({ type: "frame", entry });
   });
 
-  const applyDriverChange = async (
-    restartSelection: boolean,
-  ): Promise<void> => {
-    if (restartSelection) {
-      clearTimeout(selectionTimer);
-      selectionVisible = slots.some((slot) => slot.selected);
-      if (selectionVisible) {
-        selectionTimer = setTimeout(() => {
-          selectionVisible = false;
-          broadcast({ type: "driver", driver: driverDump() });
-          void pushConfig();
-        }, selectionLightingMs);
-      }
-    }
-    broadcast({ type: "driver", driver: driverDump() });
-    await pushThreads();
-    await pushConfig();
-  };
-
   const handleClientMessage = async (raw: string): Promise<void> => {
     let message: unknown;
     try {
@@ -226,24 +160,19 @@ export async function startSimulatorServer(
       return;
     }
     if (record.type === "slot" && typeof record.slot === "number") {
-      const slot = slots[record.slot];
-      if (slot === undefined) return;
-      let selectionChanged = false;
-      if (isSlotStatus(record.status)) slot.status = record.status;
-      if (typeof record.pulsing === "boolean") slot.pulsing = record.pulsing;
-      if (typeof record.selected === "boolean") {
-        selectionChanged = slot.selected !== record.selected;
-        if (record.selected) {
-          for (const other of slots) other.selected = false;
-        }
-        slot.selected = record.selected;
-      }
-      await applyDriverChange(selectionChanged);
+      await host.setSlot(record.slot, {
+        ...(isSlotStatus(record.status) ? { status: record.status } : {}),
+        ...(typeof record.pulsing === "boolean"
+          ? { pulsing: record.pulsing }
+          : {}),
+        ...(typeof record.selected === "boolean"
+          ? { selected: record.selected }
+          : {}),
+      });
       return;
     }
     if (record.type === "brightness" && typeof record.value === "number") {
-      brightness = Math.min(1, Math.max(0, record.value));
-      await applyDriverChange(false);
+      await host.setBrightness(record.value);
     }
   };
 
@@ -279,7 +208,7 @@ export async function startSimulatorServer(
             logLimit: FRAME_LOG_LIMIT,
           },
           state: dumpState(device.lighting),
-          driver: driverDump(),
+          driver: host.driver,
           log: frameLog,
         }),
       );
@@ -303,7 +232,7 @@ export async function startSimulatorServer(
   return {
     port,
     close: async () => {
-      clearTimeout(selectionTimer);
+      host.close();
       wss.close();
       for (const client of wss.clients) client.terminate();
       await new Promise<void>((resolve, reject) =>
