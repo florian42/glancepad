@@ -32,7 +32,7 @@ settings hook can do here, plus the events below.
 | Gap in the signals note | Mod event or API | Status |
 |---|---|---|
 | 1. Esc leaves a session blue | `turn.complete` carries `reason: 'answer' \| 'aborted' \| 'refusal' \| 'error'` and `isAborted` (search `TurnCompleteReason`) | **Closed.** Observed for SIGINT (below). Esc not yet observed. |
-| 2. An approved tool stays amber | `tool.check` resolves the verdict `allow`, `ask`, or `deny` before the dialog. The dialog "is drawn by the engine alone" (search `RenderComponent`). No event marks the user's answer. | **Open.** A verdict of `ask` predicts amber. The end of amber is still `tool.call` returning. |
+| 2. An approved tool stays amber | `tool.check` resolves the verdict `allow`, `ask`, or `deny` before the dialog. The dialog "is drawn by the engine alone" (search `RenderComponent`). No event marks the user's answer. | **Open.** A verdict of `ask` does not predict amber: in auto mode a classifier settles it with no dialog (observed below). `classic.PermissionRequest` is the amber signal. The end of amber is still `tool.call` returning. |
 | 3. A manual denial may stay amber | If the denial ends the turn, `turn.complete` fires with some `reason`. Which one is not documented. | **Probably closed.** Needs a capture. |
 | 4. A plain-text question shows green | `turn.complete` carries `answer`, the same text that `Stop` gives. | **Open.** Same as hooks. |
 | 5. Nothing marks a session as read | `ui.focus` exists, but it moves focus between mod-drawn elements. It is not terminal focus. | **Open.** |
@@ -107,6 +107,21 @@ What this settles:
   capture.
 - **`classic.Stop` fires before `turn.complete`.** A source that reads
   both must not count one turn end twice.
+
+A second capture came from one interactive session in auto mode, with
+hot reloading on (180 records, 2026-10-02):
+
+- **`tool.check` answered `ask` for 35 `Bash` and 11 `Edit` calls, but
+  no dialog appeared and no `classic.PermissionRequest` fired.** The
+  auto-mode classifier settled every ask. So `ask` alone must not light
+  amber. `PermissionRequest` is the signal that a person is asked.
+- **A subagent's turn end reaches the parent's mod.** `turn.complete`
+  fired with an `agentId` when a background subagent finished. A mod
+  adapter must drop every event with an `agentId`, or a finished
+  subagent marks the main session `unread`.
+- **Subagent tool calls reach it too.** The parent's `tool.call` and
+  `tool.check` hooks saw the subagents' calls. For lighting that is
+  harmless, because they mean the session works.
 
 Not explained: the SIGINT run has no `tool.check` record, although the
 allow rule matched. The probe writes its whole log on each event, so a
