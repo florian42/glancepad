@@ -15,6 +15,14 @@ module.exports = {
       to: { pathNot: "^src/protocol" },
     },
     {
+      name: "sessions-is-pure",
+      comment:
+        "src/sessions may import only src/sessions and src/protocol — no packages, no node builtins, no other src modules.",
+      severity: "error",
+      from: { path: "^src/sessions" },
+      to: { pathNot: "^src/(sessions|protocol)" },
+    },
+    {
       name: "simulator-no-ui",
       comment:
         "src/simulator must not import src/ui — keeps headless mode real.",
