@@ -79,6 +79,9 @@ warn that the transcript "is written asynchronously and may lag the
 in-memory conversation", and its format is undocumented. Capture first,
 then decide.
 
+A Claude Code mod sees interrupts directly. See
+[claude-code-mods-as-state-source.md](claude-code-mods-as-state-source.md).
+
 ## Deliver events with an HTTP hook
 
 A `type: "http"` hook posts the event JSON to a URL, so glancepad needs no

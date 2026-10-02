@@ -1,0 +1,6 @@
+{
+  "name": "glancepad-probe",
+  "version": "0.1.0",
+  "description": "Record the session events glancepad would light keys from, as JSONL",
+  "types": "./types/index.d.ts"
+}
