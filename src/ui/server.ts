@@ -18,6 +18,7 @@ import {
   COMMAND_KEYS,
   type CommandKey,
   LIGHTING_EFFECTS,
+  SELECTION_LIGHTING_MS,
   type SlotStatus,
   STATUS_COLORS,
 } from "../protocol/index.js";
@@ -48,6 +49,12 @@ interface FrameLogEntry {
   readonly direction: "host-to-device" | "device-to-host";
   readonly ts: number;
   readonly hex: string;
+  /** Report byte 0. Kept even when the report fails to decode. */
+  readonly reportId: number;
+  /** Report byte 1. */
+  readonly channel: number;
+  /** Report byte 2, the payload length in this frame. */
+  readonly length: number;
   readonly decoded: readonly string[];
   readonly note?: string;
 }
@@ -136,6 +143,9 @@ export async function startSimulatorServer(
       hex: Array.from(event.report, (b) =>
         b.toString(16).padStart(2, "0"),
       ).join(""),
+      reportId: event.report[0] ?? 0,
+      channel: event.report[1] ?? 0,
+      length: event.report[2] ?? 0,
       decoded: event.decoded,
       ...(event.note === undefined ? {} : { note: event.note }),
     };
@@ -179,7 +189,16 @@ export async function startSimulatorServer(
   const httpServer = createServer(async (req, res) => {
     if (req.url === "/state") {
       res.writeHead(200, { "content-type": "application/json" });
-      res.end(JSON.stringify(dumpState(device.lighting), null, 2));
+      // The LED dump cannot tell two statuses of one color apart, and
+      // it cannot show whether selection lighting is still on. The
+      // driver sits beside it so a headless check can.
+      res.end(
+        JSON.stringify(
+          { ...dumpState(device.lighting), driver: host.driver },
+          null,
+          2,
+        ),
+      );
       return;
     }
     if (req.url === "/" || req.url === "/index.html") {
@@ -206,6 +225,8 @@ export async function startSimulatorServer(
             commandKeys: COMMAND_KEY_LAYOUT,
             statuses: Object.keys(STATUS_COLORS),
             logLimit: FRAME_LOG_LIMIT,
+            selectionLightingMs:
+              options.selectionLightingMs ?? SELECTION_LIGHTING_MS,
           },
           state: dumpState(device.lighting),
           driver: host.driver,

@@ -4,6 +4,7 @@
 
 import { afterEach, describe, expect, it } from "vitest";
 import WebSocket from "ws";
+import { SELECTION_LIGHTING_MS } from "../src/protocol/index.js";
 import { SimulatedDevice } from "../src/simulator/index.js";
 import {
   type SimulatorServer,
@@ -20,6 +21,7 @@ interface StateDump {
   slots: Record<string, ZoneDump>;
   ambient: ZoneDump;
   keys: ZoneDump;
+  driver: DriverDump;
 }
 interface DriverDump {
   slots: { status: string; selected: boolean; pulsing: boolean }[];
@@ -30,11 +32,20 @@ interface FrameEntry {
   direction: string;
   ts: number;
   hex: string;
+  reportId: number;
+  channel: number;
+  length: number;
   decoded: string[];
   note?: string;
 }
 type ServerMessage =
-  | { type: "hello"; state: StateDump; driver: DriverDump; log: FrameEntry[] }
+  | {
+      type: "hello";
+      state: StateDump;
+      driver: DriverDump;
+      log: FrameEntry[];
+      layout: { selectionLightingMs: number };
+    }
   | { type: "state"; state: StateDump }
   | { type: "driver"; driver: DriverDump }
   | { type: "frame"; entry: FrameEntry };
@@ -108,6 +119,13 @@ describe("simulator server", () => {
     });
     expect(state.ambient.effect).toBe("off");
     expect(state.keys.effect).toBe("off");
+    expect(state.driver.selectionVisible).toBe(false);
+    expect(state.driver.slots).toHaveLength(6);
+    expect(state.driver.slots[0]).toEqual({
+      status: "off",
+      selected: false,
+      pulsing: false,
+    });
   });
 
   it("greets a client with state, driver, and the frame log", async () => {
@@ -118,6 +136,7 @@ describe("simulator server", () => {
     );
     expect(hello.driver.slots).toHaveLength(6);
     expect(hello.log).toEqual([]);
+    expect(hello.layout.selectionLightingMs).toBe(SELECTION_LIGHTING_MS);
   });
 
   it("drives a status change through the byte path to the LEDs", async () => {
@@ -146,6 +165,30 @@ describe("simulator server", () => {
       await fetch(`http://127.0.0.1:${server.port}/state`)
     ).json()) as StateDump;
     expect(dump.slots.AG00?.effect).toBe("breath");
+    expect(dump.driver.slots[0]).toMatchObject({
+      status: "working",
+      selected: true,
+    });
+    expect(dump.driver.selectionVisible).toBe(true);
+  });
+
+  it("keeps the two amber statuses distinct in the driver dump", async () => {
+    server = await startSimulatorServer(new SimulatedDevice(), { port: 0 });
+    client = await connect(server.port);
+    client.send({ type: "slot", slot: 1, status: "awaiting-approval" });
+    client.send({ type: "slot", slot: 2, status: "awaiting-response" });
+    await client.next<Extract<ServerMessage, { type: "state" }>>(
+      (m) =>
+        m.type === "state" &&
+        m.state.slots.AG01?.color === "#ff6d00" &&
+        m.state.slots.AG02?.color === "#ff6d00",
+    );
+    const dump = (await (
+      await fetch(`http://127.0.0.1:${server.port}/state`)
+    ).json()) as StateDump;
+    expect(dump.slots.AG01?.color).toBe(dump.slots.AG02?.color);
+    expect(dump.driver.slots[1]?.status).toBe("awaiting-approval");
+    expect(dump.driver.slots[2]?.status).toBe("awaiting-response");
   });
 
   it("turns the keys backlight off when selection lighting expires", async () => {
@@ -154,6 +197,11 @@ describe("simulator server", () => {
       selectionLightingMs: 50,
     });
     client = await connect(server.port);
+
+    const hello = await client.next<Extract<ServerMessage, { type: "hello" }>>(
+      (m) => m.type === "hello",
+    );
+    expect(hello.layout.selectionLightingMs).toBe(50);
 
     type StateMessage = Extract<ServerMessage, { type: "state" }>;
     client.send({ type: "slot", slot: 2, status: "working" });
@@ -170,9 +218,26 @@ describe("simulator server", () => {
         m.state.keys.effect === "off" &&
         m.state.ambient.effect === "snake",
     );
-    await client.next<Extract<ServerMessage, { type: "driver" }>>(
-      (m) => m.type === "driver" && m.driver.selectionVisible === false,
+    const expired = await client.next<
+      Extract<ServerMessage, { type: "driver" }>
+    >(
+      (m) =>
+        m.type === "driver" &&
+        m.driver.selectionVisible === false &&
+        m.driver.slots[2]?.selected === true,
     );
+    expect(expired.driver.slots[2]?.selected).toBe(true);
+    const dump = (await (
+      await fetch(`http://127.0.0.1:${server.port}/state`)
+    ).json()) as StateDump;
+    expect(dump.driver.selectionVisible).toBe(false);
+    expect(dump.driver.slots[2]).toMatchObject({
+      status: "working",
+      selected: true,
+    });
+    expect(dump.keys.effect).toBe("off");
+    expect(dump.ambient.effect).toBe("snake");
+    expect(dump.slots.AG02?.effect).toBe("breath");
   });
 
   it("turns a key click into a framed v.oai.hid notification", async () => {
@@ -188,6 +253,11 @@ describe("simulator server", () => {
     expect(frame.entry.decoded[0]).toContain('"key":"AG03"');
     expect(frame.entry.decoded[0]).toContain('"act":1');
     expect(frame.entry.hex).toMatch(/^0602/);
+    expect(frame.entry.reportId).toBe(6);
+    expect(frame.entry.channel).toBe(2);
+    expect(frame.entry.length).toBe(
+      Number.parseInt(frame.entry.hex.slice(4, 6), 16),
+    );
   });
 
   it("logs host-to-device frames for lighting pushes", async () => {
@@ -201,5 +271,20 @@ describe("simulator server", () => {
         m.entry.decoded.some((text: string) => text.includes("v.oai.thstatus")),
     );
     expect(frame.entry.hex).toHaveLength(128);
+    expect(frame.entry.reportId).toBe(6);
+    expect(frame.entry.channel).toBe(2);
+    expect(frame.entry.length).toBe(
+      Number.parseInt(frame.entry.hex.slice(4, 6), 16),
+    );
+    const pending = await client.next<
+      Extract<ServerMessage, { type: "frame" }>
+    >(
+      (m) =>
+        m.type === "frame" &&
+        m.entry.direction === "host-to-device" &&
+        m.entry.decoded.length === 0 &&
+        m.entry.length === 61,
+    );
+    expect(pending.entry.hex.slice(0, 6)).toBe("06023d");
   });
 });

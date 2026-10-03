@@ -133,7 +133,12 @@
     z-index: 1;
     font-size: 11px;
     font-weight: 600;
-    text-shadow: 0 1px 2px rgb(0 0 0 / 60%);
+    color: var(--ink, var(--text));
+    text-shadow:
+      1px 0 0 var(--ink-halo, #000),
+      -1px 0 0 var(--ink-halo, #000),
+      0 1px 0 var(--ink-halo, #000),
+      0 -1px 0 var(--ink-halo, #000);
   }
   button.key .sub-id {
     position: absolute;
@@ -141,7 +146,7 @@
     bottom: 3px;
     right: 6px;
     font-size: 8px;
-    color: rgb(255 255 255 / 45%);
+    color: var(--ink, var(--text));
   }
   .row.commands { grid-template-columns: repeat(4, 58px) 124px 58px; }
 
@@ -154,6 +159,7 @@
     background: var(--panel-2); color: var(--text);
     border: 1px solid var(--edge); border-radius: 5px; padding: 2px 4px;
   }
+  #selection-lighting { color: var(--muted); font-size: 12px; margin: 8px 0 0; }
   .brightness { display: flex; gap: 10px; align-items: center; margin-top: 10px; }
   .brightness input { flex: 1; }
 
@@ -176,6 +182,7 @@
   #log .dir-out { color: #6fd98a; }
   #log time { color: var(--muted); }
   #log code { word-break: break-all; white-space: pre-wrap; }
+  #log .meta { color: var(--muted); margin-right: 8px; }
   #log .undecoded { color: var(--muted); }
   #log .note { color: #ff6d7a; }
   #log details { margin-top: 1px; }
@@ -210,6 +217,7 @@
       </thead>
       <tbody id="driver-rows"></tbody>
     </table>
+    <p id="selection-lighting">Selection lighting off.</p>
     <label class="brightness">
       brightness
       <input id="brightness" type="range" min="0" max="1" step="0.05" value="1" />
@@ -342,9 +350,21 @@
   const snakeDur = (speed) => (speed > 0 ? `${(1.12 / speed).toFixed(2)}s` : "0s");
   const breathDur = (speed) => (speed > 0 ? `${(1.2 / speed).toFixed(2)}s` : "0s");
 
+  // Light status colors (idle white, unread green) hide a light legend.
+  // Pick the ink from the LED luminance, and keep the opposite color
+  // as a one-pixel halo so a breath trough does not erase the legend.
+  const channel = (value) => {
+    const s = value / 255;
+    return s <= 0.04045 ? s / 12.92 : ((s + 0.055) / 1.055) ** 2.4;
+  };
   const paintZone = (element, zone) => {
     const [r, g, b] = [1, 3, 5].map((i) =>
       Math.round(parseInt(zone.color.slice(i, i + 2), 16) * zone.brightness));
+    const luminance =
+      0.2126 * channel(r) + 0.7152 * channel(g) + 0.0722 * channel(b);
+    const lightLed = zone.effect !== "off" && luminance > 0.45;
+    element.style.setProperty("--ink", lightLed ? "#16181f" : "#f4f7ff");
+    element.style.setProperty("--ink-halo", lightLed ? "#ffffff" : "#000000");
     element.style.setProperty("--zone-color", `rgb(${r} ${g} ${b})`);
     element.style.setProperty("--snake-dur", snakeDur(zone.speed));
     element.style.setProperty("--breath-dur", breathDur(zone.speed));
@@ -381,6 +401,10 @@
       document.querySelector('input[type="radio"][data-slot="-1"]').checked = true;
     $("brightness").value = driver.brightness;
     $("brightness-value").textContent = driver.brightness.toFixed(2);
+    const ms = layout.selectionLightingMs;
+    $("selection-lighting").textContent = driver.selectionVisible
+      ? `Selection lighting on, ${ms} ms.`
+      : "Selection lighting off.";
   };
 
   /* ── Frame log ── */
@@ -394,10 +418,14 @@
       : '<span class="dir-out">device →</span>';
     const decoded = entry.decoded.length
       ? `<code>${entry.decoded.map(escapeHtml).join("<br />")}</code>`
-      : '<code class="undecoded">…</code>';
+      : entry.note
+        ? ""
+        : '<code class="undecoded">pending</code>';
     const note = entry.note ? ` <span class="note">${escapeHtml(entry.note)}</span>` : "";
+    const header =
+      `id ${entry.reportId} ch ${entry.channel} len ${entry.length}`;
     item.innerHTML = `<time>${stamp}</time>${dir}
-      <div>${decoded}${note}
+      <div><span class="meta">${header}</span> ${decoded}${note}
         <details><summary>raw</summary><code>${entry.hex}</code></details>
       </div>`;
     const stick = log.scrollTop + log.clientHeight >= log.scrollHeight - 8;
