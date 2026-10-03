@@ -6,7 +6,9 @@ import { describe, expect, it } from "vitest";
 import type { SlotStatus } from "../src/protocol/index.js";
 import {
   emptySessions,
+  expireSilentSessions,
   reduceSessions,
+  SESSION_SILENCE_MS,
   type SessionEvent,
   type Sessions,
   selectSlots,
@@ -236,6 +238,34 @@ describe("reduceSessions, ordering and duplicate guards", () => {
     expect(statuses([turnEnded("a", "answer")])).toEqual(["unread", ...off(5)]);
   });
 
+  it("refreshes a watched session on a heartbeat and keeps its status", () => {
+    const working = feed([started("a"), prompted("a")]);
+    const beat = reduceSessions(
+      working,
+      { kind: "heartbeat", sessionId: "a" },
+      50,
+    );
+    expect(selectSlots(beat).map((slot) => slot.status)).toEqual([
+      "working",
+      ...off(5),
+    ]);
+    expect(beat.get("a")?.watched).toBe(true);
+    expect(beat.get("a")?.lastActivityMs).toBe(50);
+  });
+
+  it("creates an idle watched session for a heartbeat with an unknown id", () => {
+    const beat = reduceSessions(
+      emptySessions,
+      { kind: "heartbeat", sessionId: "a" },
+      1,
+    );
+    expect(selectSlots(beat).map((slot) => slot.status)).toEqual([
+      "idle",
+      ...off(5),
+    ]);
+    expect(beat.get("a")?.watched).toBe(true);
+  });
+
   it("ignores ended for an unknown session id", () => {
     const sessions = feed([started("a")]);
     const after = reduceSessions(
@@ -244,5 +274,56 @@ describe("reduceSessions, ordering and duplicate guards", () => {
       99,
     );
     expect(selectSlots(after)).toEqual(selectSlots(sessions));
+  });
+});
+
+describe("expireSilentSessions", () => {
+  const heartbeat = (sessionId: string): SessionEvent => ({
+    kind: "heartbeat",
+    sessionId,
+  });
+
+  it("turns a watched session off after the silence window", () => {
+    const watched = feed([started("a"), prompted("a"), heartbeat("a")]);
+    const last = watched.get("a")?.lastActivityMs ?? 0;
+    const quiet = expireSilentSessions(watched, last + SESSION_SILENCE_MS);
+    expect(selectSlots(quiet).map((slot) => slot.status)).toEqual(off(6));
+  });
+
+  it("keeps a watched session that heartbeated inside the window", () => {
+    const watched = feed([started("a"), prompted("a"), heartbeat("a")]);
+    const last = watched.get("a")?.lastActivityMs ?? 0;
+    const quiet = expireSilentSessions(watched, last + SESSION_SILENCE_MS - 1);
+    expect(selectSlots(quiet).map((slot) => slot.status)).toEqual([
+      "working",
+      ...off(5),
+    ]);
+  });
+
+  it("keeps a session that never heartbeated", () => {
+    const hooksOnly = feed([started("a"), prompted("a")]);
+    const quiet = expireSilentSessions(hooksOnly, SESSION_SILENCE_MS * 10);
+    expect(selectSlots(quiet).map((slot) => slot.status)).toEqual([
+      "working",
+      ...off(5),
+    ]);
+  });
+
+  it("removes only the silent watched session", () => {
+    const both = feed([
+      started("a"),
+      prompted("a"),
+      heartbeat("a"),
+      started("b"),
+      prompted("b"),
+    ]);
+    const last = both.get("a")?.lastActivityMs ?? 0;
+    const quiet = expireSilentSessions(both, last + SESSION_SILENCE_MS);
+    expect(selectSlots(quiet).map((slot) => slot.status)).toEqual([
+      "working",
+      ...off(5),
+    ]);
+    expect(quiet.has("a")).toBe(false);
+    expect(quiet.get("b")?.status).toBe("working");
   });
 });
