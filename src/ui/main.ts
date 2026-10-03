@@ -10,4 +10,4 @@ const device = new SimulatedDevice();
 const server = await startSimulatorServer(device, { port });
 
 console.log(`glancepad simulator  http://localhost:${server.port}/`);
-console.log(`LED state as JSON    http://localhost:${server.port}/state`);
+console.log(`LED state and driver http://localhost:${server.port}/state`);

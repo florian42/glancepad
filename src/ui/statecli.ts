@@ -1,6 +1,7 @@
-// Prints the running simulator's LED state as JSON: `pnpm sim:state`.
-// This queries the live process, so the dump reflects every lighting
-// call the simulator has received so far.
+// Prints the running simulator's LED state and driver as JSON:
+// `pnpm sim:state`. This queries the live process, so the dump
+// reflects every lighting call the simulator has received so far,
+// plus the slot status and the selection-lighting flag.
 
 import { DEFAULT_PORT } from "./port.js";
 

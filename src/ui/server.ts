@@ -18,6 +18,7 @@ import {
   COMMAND_KEYS,
   type CommandKey,
   LIGHTING_EFFECTS,
+  SELECTION_LIGHTING_MS,
   type SlotStatus,
   STATUS_COLORS,
 } from "../protocol/index.js";
@@ -188,7 +189,16 @@ export async function startSimulatorServer(
   const httpServer = createServer(async (req, res) => {
     if (req.url === "/state") {
       res.writeHead(200, { "content-type": "application/json" });
-      res.end(JSON.stringify(dumpState(device.lighting), null, 2));
+      // The LED dump cannot tell two statuses of one color apart, and
+      // it cannot show whether selection lighting is still on. The
+      // driver sits beside it so a headless check can.
+      res.end(
+        JSON.stringify(
+          { ...dumpState(device.lighting), driver: host.driver },
+          null,
+          2,
+        ),
+      );
       return;
     }
     if (req.url === "/" || req.url === "/index.html") {
@@ -215,6 +225,8 @@ export async function startSimulatorServer(
             commandKeys: COMMAND_KEY_LAYOUT,
             statuses: Object.keys(STATUS_COLORS),
             logLimit: FRAME_LOG_LIMIT,
+            selectionLightingMs:
+              options.selectionLightingMs ?? SELECTION_LIGHTING_MS,
           },
           state: dumpState(device.lighting),
           driver: host.driver,

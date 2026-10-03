@@ -154,6 +154,7 @@
     background: var(--panel-2); color: var(--text);
     border: 1px solid var(--edge); border-radius: 5px; padding: 2px 4px;
   }
+  #selection-lighting { color: var(--muted); font-size: 12px; margin: 8px 0 0; }
   .brightness { display: flex; gap: 10px; align-items: center; margin-top: 10px; }
   .brightness input { flex: 1; }
 
@@ -211,6 +212,7 @@
       </thead>
       <tbody id="driver-rows"></tbody>
     </table>
+    <p id="selection-lighting">Selection lighting off.</p>
     <label class="brightness">
       brightness
       <input id="brightness" type="range" min="0" max="1" step="0.05" value="1" />
@@ -382,6 +384,10 @@
       document.querySelector('input[type="radio"][data-slot="-1"]').checked = true;
     $("brightness").value = driver.brightness;
     $("brightness-value").textContent = driver.brightness.toFixed(2);
+    const ms = layout.selectionLightingMs;
+    $("selection-lighting").textContent = driver.selectionVisible
+      ? `Selection lighting on, ${ms} ms.`
+      : "Selection lighting off.";
   };
 
   /* ── Frame log ── */

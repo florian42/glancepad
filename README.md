@@ -28,7 +28,7 @@ Every device-facing claim is marked as verified-by-reading or unverified.
 ```sh
 pnpm install
 pnpm sim         # serves the on-screen keypad on http://localhost:4180/
-pnpm sim:state   # prints the six keys and both zones as JSON
+pnpm sim:state   # prints the six keys, both zones, and the driver as JSON
 ```
 
 The page shows the six agent keys, the ambient ring, the keys backlight,
