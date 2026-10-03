@@ -32,12 +32,26 @@ export type SessionEvent =
       sessionId: string;
       outcome: "answer" | "interrupted" | "error";
     }
-  | { kind: "ended"; sessionId: string };
+  | { kind: "ended"; sessionId: string }
+  /** Mod liveness. Hooks do not send this. Refreshes the session. */
+  | { kind: "heartbeat"; sessionId: string };
 
 export interface Session {
   readonly status: SlotStatus;
   readonly lastActivityMs: number;
+  /**
+   * True after a mod heartbeat. Silence can remove the session only
+   * then, so a hooks-only session stays until it ends.
+   */
+  readonly watched: boolean;
 }
+
+/**
+ * A watched session leaves the keys after this long with no event
+ * and no heartbeat. The mod posts a heartbeat every 5 seconds, so
+ * this window allows two missed posts. Our choice. Not from a capture.
+ */
+export const SESSION_SILENCE_MS = 15_000;
 
 /** All known sessions, keyed by session id. */
 export type Sessions = ReadonlyMap<string, Session>;
@@ -74,18 +88,46 @@ export function reduceSessions(
     next.delete(event.sessionId);
     return next;
   }
+  if (event.kind === "heartbeat") {
+    return new Map(sessions).set(event.sessionId, {
+      status: current?.status ?? "idle",
+      lastActivityMs: nowMs,
+      watched: true,
+    });
+  }
   const status = nextStatus(current?.status, event);
   if (status === undefined) return sessions;
   return new Map(sessions).set(event.sessionId, {
     status,
     lastActivityMs: nowMs,
+    watched: current?.watched ?? false,
   });
+}
+
+/**
+ * Removes watched sessions with no event and no heartbeat for
+ * `silenceMs`. Other sessions stay. Returns the same map when
+ * nothing expires.
+ */
+export function expireSilentSessions(
+  sessions: Sessions,
+  nowMs: number,
+  silenceMs = SESSION_SILENCE_MS,
+): Sessions {
+  let next: Map<string, Session> | undefined;
+  for (const [id, session] of sessions) {
+    if (!session.watched) continue;
+    if (nowMs - session.lastActivityMs < silenceMs) continue;
+    if (next === undefined) next = new Map(sessions);
+    next.delete(id);
+  }
+  return next ?? sessions;
 }
 
 /** Returns the new status, or `undefined` to ignore the event. */
 function nextStatus(
   current: SlotStatus | undefined,
-  event: Exclude<SessionEvent, { kind: "ended" }>,
+  event: Exclude<SessionEvent, { kind: "ended" } | { kind: "heartbeat" }>,
 ): SlotStatus | undefined {
   switch (event.kind) {
     case "started":

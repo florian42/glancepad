@@ -1,0 +1,5 @@
+{
+  "name": "glancepad-mod",
+  "version": "0.1.0",
+  "description": "Post interrupts and heartbeats to the glancepad simulator"
+}

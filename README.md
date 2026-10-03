@@ -37,6 +37,28 @@ clickable; press and release emit real `v.oai.hid` notifications through
 the same framing code hardware mode will use. Headless is the same
 process with no browser connected.
 
+## Optional Claude Code mod
+
+The mod targets Claude Code 2.1.287. That build's mod API is early
+access and can change without notice.
+
+The mod posts two events to `http://127.0.0.1:4180/events`. It posts
+`turn-ended` with outcome `interrupted`. It posts a heartbeat every
+5 seconds. It does not post the events a settings hook already sends.
+
+A failed post stays silent. glancepad can be down.
+
+Load the mod from a checkout:
+
+```sh
+claude --plugin-dir scripts/glancepad-mod
+```
+
+A watched session leaves the keys when no event and no heartbeat
+arrive for 15 seconds. Settings-hook delivery is issue 6. It is not
+on this branch. This server accepts only the mod's events. It ignores
+a hook body. It does not log that body.
+
 ## What is here
 
 | Path | Contents |

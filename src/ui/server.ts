@@ -9,10 +9,11 @@
 // serves the JSON dump.
 
 import { readFile } from "node:fs/promises";
-import { createServer } from "node:http";
+import { createServer, type IncomingMessage } from "node:http";
 import { join } from "node:path";
 import { WebSocketServer } from "ws";
 import { createHost } from "../device/host.js";
+import { parseModEvent, toSessionEvent } from "../mods/index.js";
 import {
   AGENT_KEYS,
   COMMAND_KEYS,
@@ -22,6 +23,15 @@ import {
   type SlotStatus,
   STATUS_COLORS,
 } from "../protocol/index.js";
+import {
+  emptySessions,
+  expireSilentSessions,
+  reduceSessions,
+  SESSION_SILENCE_MS,
+  type SessionEvent,
+  type Sessions,
+  selectSlots,
+} from "../sessions/index.js";
 import {
   type DeviceKey,
   type LedState,
@@ -61,6 +71,12 @@ interface FrameLogEntry {
 
 export interface SimulatorServer {
   readonly port: number;
+  /**
+   * Applies one normalized session event and pushes lighting when a
+   * slot status changes. Issue 6's hook adapter will call this. The
+   * mod route is the only HTTP caller in this build.
+   */
+  applySession(event: SessionEvent, nowMs?: number): Promise<void>;
   close(): Promise<void>;
 }
 
@@ -69,6 +85,24 @@ export interface SimulatorServerOptions {
   readonly port: number;
   /** Selection-lighting duration override, for tests. */
   readonly selectionLightingMs?: number;
+  /** Silence before a watched session leaves. Default 15 seconds. */
+  readonly sessionSilenceMs?: number;
+  /** How often to check silence. Default 1 second. */
+  readonly livenessIntervalMs?: number;
+}
+
+const BODY_LIMIT = 64 * 1024;
+
+async function readBody(req: IncomingMessage): Promise<string> {
+  const chunks: Buffer[] = [];
+  let total = 0;
+  for await (const chunk of req) {
+    const buffer = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
+    total += buffer.length;
+    if (total > BODY_LIMIT) throw new Error("body too large");
+    chunks.push(buffer);
+  }
+  return Buffer.concat(chunks).toString("utf8");
 }
 
 const EFFECT_NAMES = new Map<number, string>(
@@ -118,6 +152,29 @@ export async function startSimulatorServer(
   // drives it.
   const host = createHost(device, options);
   const frameLog: FrameLogEntry[] = [];
+  let sessions: Sessions = emptySessions;
+  const silenceMs = options.sessionSilenceMs ?? SESSION_SILENCE_MS;
+
+  const publishSessions = async (): Promise<void> => {
+    const signals = selectSlots(sessions);
+    for (let index = 0; index < signals.length; index++) {
+      const signal = signals[index];
+      const current = host.driver.slots[index];
+      if (signal === undefined || current === undefined) continue;
+      if (current.status === signal.status) continue;
+      await host.setSlot(index, { status: signal.status });
+    }
+  };
+
+  const applySession = async (
+    event: SessionEvent,
+    nowMs = Date.now(),
+  ): Promise<void> => {
+    const next = reduceSessions(sessions, event, nowMs);
+    if (next === sessions) return;
+    sessions = next;
+    await publishSessions();
+  };
 
   const wss = new WebSocketServer({ noServer: true });
 
@@ -187,6 +244,22 @@ export async function startSimulatorServer(
   };
 
   const httpServer = createServer(async (req, res) => {
+    if (req.method === "POST" && req.url === "/events") {
+      let event: ReturnType<typeof parseModEvent>;
+      try {
+        const text = await readBody(req);
+        event = parseModEvent(JSON.parse(text));
+      } catch {
+        // Bad JSON or a huge body. Do not log the body.
+        res.writeHead(204);
+        res.end();
+        return;
+      }
+      if (event) await applySession(toSessionEvent(event));
+      res.writeHead(204);
+      res.end();
+      return;
+    }
     if (req.url === "/state") {
       res.writeHead(200, { "content-type": "application/json" });
       // The LED dump cannot tell two statuses of one color apart, and
@@ -250,9 +323,18 @@ export async function startSimulatorServer(
       ? address.port
       : options.port;
 
+  const liveness = setInterval(() => {
+    const next = expireSilentSessions(sessions, Date.now(), silenceMs);
+    if (next === sessions) return;
+    sessions = next;
+    void publishSessions();
+  }, options.livenessIntervalMs ?? 1000);
+
   return {
     port,
+    applySession,
     close: async () => {
+      clearInterval(liveness);
       host.close();
       wss.close();
       for (const client of wss.clients) client.terminate();
