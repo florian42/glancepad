@@ -27,11 +27,11 @@ replug. The repository has no udev rule. Issue 9 names
 
 ## Interactive terminal
 
-Issue 7 needs a person at a terminal. The first session loads both
-probes:
+Issue 7 needs a person at a terminal. The first session loads the
+capture settings, the capture probe, and the glancepad mod:
 
 ```sh
-claude --settings scripts/capture-hooks.settings.json --plugin-dir scripts/mod-probe
+claude --settings scripts/capture-hooks.settings.json --plugin-dir scripts/mod-probe --plugin-dir scripts/glancepad-mod
 ```
 
 The hook log is `/tmp/glancepad-hooks.jsonl`. The mod log is
@@ -39,6 +39,8 @@ The hook log is `/tmp/glancepad-hooks.jsonl`. The mod log is
 either log. The session reducer already has an `awaiting-response`
 event.
 
+- **Uncertain.** Claude Code was not installed in the mod run, so
+  `claude --plugin-dir scripts/glancepad-mod` is not yet observed.
 - **Verified.** Press Esc while a turn works, and keep the mod log.
 - **Verified.** A headless SIGINT ends in `turn.complete` with reason
   `aborted` and no `Stop`
