@@ -425,7 +425,7 @@
     const header =
       `id ${entry.reportId} ch ${entry.channel} len ${entry.length}`;
     item.innerHTML = `<time>${stamp}</time>${dir}
-      <div><span class="meta">${header}</span>${decoded}${note}
+      <div><span class="meta">${header}</span> ${decoded}${note}
         <details><summary>raw</summary><code>${entry.hex}</code></details>
       </div>`;
     const stick = log.scrollTop + log.clientHeight >= log.scrollHeight - 8;
