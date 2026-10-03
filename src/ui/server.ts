@@ -48,6 +48,12 @@ interface FrameLogEntry {
   readonly direction: "host-to-device" | "device-to-host";
   readonly ts: number;
   readonly hex: string;
+  /** Report byte 0. Kept even when the report fails to decode. */
+  readonly reportId: number;
+  /** Report byte 1. */
+  readonly channel: number;
+  /** Report byte 2, the payload length in this frame. */
+  readonly length: number;
   readonly decoded: readonly string[];
   readonly note?: string;
 }
@@ -136,6 +142,9 @@ export async function startSimulatorServer(
       hex: Array.from(event.report, (b) =>
         b.toString(16).padStart(2, "0"),
       ).join(""),
+      reportId: event.report[0] ?? 0,
+      channel: event.report[1] ?? 0,
+      length: event.report[2] ?? 0,
       decoded: event.decoded,
       ...(event.note === undefined ? {} : { note: event.note }),
     };

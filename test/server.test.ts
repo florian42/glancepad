@@ -30,6 +30,9 @@ interface FrameEntry {
   direction: string;
   ts: number;
   hex: string;
+  reportId: number;
+  channel: number;
+  length: number;
   decoded: string[];
   note?: string;
 }
@@ -188,6 +191,11 @@ describe("simulator server", () => {
     expect(frame.entry.decoded[0]).toContain('"key":"AG03"');
     expect(frame.entry.decoded[0]).toContain('"act":1');
     expect(frame.entry.hex).toMatch(/^0602/);
+    expect(frame.entry.reportId).toBe(6);
+    expect(frame.entry.channel).toBe(2);
+    expect(frame.entry.length).toBe(
+      Number.parseInt(frame.entry.hex.slice(4, 6), 16),
+    );
   });
 
   it("logs host-to-device frames for lighting pushes", async () => {
@@ -201,5 +209,20 @@ describe("simulator server", () => {
         m.entry.decoded.some((text: string) => text.includes("v.oai.thstatus")),
     );
     expect(frame.entry.hex).toHaveLength(128);
+    expect(frame.entry.reportId).toBe(6);
+    expect(frame.entry.channel).toBe(2);
+    expect(frame.entry.length).toBe(
+      Number.parseInt(frame.entry.hex.slice(4, 6), 16),
+    );
+    const pending = await client.next<
+      Extract<ServerMessage, { type: "frame" }>
+    >(
+      (m) =>
+        m.type === "frame" &&
+        m.entry.direction === "host-to-device" &&
+        m.entry.decoded.length === 0 &&
+        m.entry.length === 61,
+    );
+    expect(pending.entry.hex.slice(0, 6)).toBe("06023d");
   });
 });

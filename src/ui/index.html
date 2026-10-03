@@ -176,6 +176,7 @@
   #log .dir-out { color: #6fd98a; }
   #log time { color: var(--muted); }
   #log code { word-break: break-all; white-space: pre-wrap; }
+  #log .meta { color: var(--muted); margin-right: 8px; }
   #log .undecoded { color: var(--muted); }
   #log .note { color: #ff6d7a; }
   #log details { margin-top: 1px; }
@@ -394,10 +395,14 @@
       : '<span class="dir-out">device →</span>';
     const decoded = entry.decoded.length
       ? `<code>${entry.decoded.map(escapeHtml).join("<br />")}</code>`
-      : '<code class="undecoded">…</code>';
+      : entry.note
+        ? ""
+        : '<code class="undecoded">pending</code>';
     const note = entry.note ? ` <span class="note">${escapeHtml(entry.note)}</span>` : "";
+    const header =
+      `id ${entry.reportId} ch ${entry.channel} len ${entry.length}`;
     item.innerHTML = `<time>${stamp}</time>${dir}
-      <div>${decoded}${note}
+      <div><span class="meta">${header}</span>${decoded}${note}
         <details><summary>raw</summary><code>${entry.hex}</code></details>
       </div>`;
     const stick = log.scrollTop + log.clientHeight >= log.scrollHeight - 8;
