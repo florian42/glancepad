@@ -152,17 +152,33 @@ function nextStatus(
   }
 }
 
+/** Sessions with the latest activity first, capped at the agent keys. */
+function recentSessions(
+  sessions: Sessions,
+): readonly (readonly [string, Session])[] {
+  return [...sessions.entries()]
+    .sort((a, b) => b[1].lastActivityMs - a[1].lastActivityMs)
+    .slice(0, SLOT_COUNT);
+}
+
 /**
  * Returns one signal per agent key: the sessions with the latest
  * activity first, and `off` for each key without a session.
  */
 export function selectSlots(sessions: Sessions): SlotSignal[] {
-  const recent = [...sessions.values()]
-    .sort((a, b) => b.lastActivityMs - a.lastActivityMs)
-    .slice(0, SLOT_COUNT);
+  const recent = recentSessions(sessions);
   return Array.from({ length: SLOT_COUNT }, (_, i) => ({
-    status: recent[i]?.status ?? "off",
+    status: recent[i]?.[1].status ?? "off",
     selected: false,
     pulsing: false,
   }));
+}
+
+/**
+ * Session ids in the same order as `selectSlots`. An empty key is
+ * `null`. The driver panel uses this to forget one session.
+ */
+export function selectSessionIds(sessions: Sessions): (string | null)[] {
+  const recent = recentSessions(sessions);
+  return Array.from({ length: SLOT_COUNT }, (_, i) => recent[i]?.[0] ?? null);
 }

@@ -30,7 +30,9 @@ import {
   SESSION_SILENCE_MS,
   type SessionEvent,
   type Sessions,
+  selectSessionIds,
   selectSlots,
+  sessionEventFromHook,
 } from "../sessions/index.js";
 import {
   type DeviceKey,
@@ -41,6 +43,9 @@ import {
 } from "../simulator/index.js";
 
 const FRAME_LOG_LIMIT = 200;
+// A hook body carries prompt text. The adapter drops that text after
+// the parse. The cap only stops a runaway body.
+const BODY_LIMIT = 1024 * 1024;
 
 // The default hardware layout: keycap legends per command key, with the
 // microphone keys merged — research/codex-micro-agent-key-assignment.md,
@@ -69,12 +74,18 @@ interface FrameLogEntry {
   readonly note?: string;
 }
 
+/** Which input drives the six keys. Sessions win after the first event. */
+export interface FeedState {
+  readonly source: "panel" | "sessions";
+  readonly sessionIds: readonly (string | null)[];
+}
+
 export interface SimulatorServer {
   readonly port: number;
   /**
    * Applies one normalized session event and pushes lighting when a
-   * slot status changes. Issue 6's hook adapter will call this. The
-   * mod route is the only HTTP caller in this build.
+   * slot status changes. The hook adapter and the mod route both call
+   * this.
    */
   applySession(event: SessionEvent, nowMs?: number): Promise<void>;
   close(): Promise<void>;
@@ -89,9 +100,9 @@ export interface SimulatorServerOptions {
   readonly sessionSilenceMs?: number;
   /** How often to check silence. Default 1 second. */
   readonly livenessIntervalMs?: number;
+  /** Gap between reports. Tests pass 0. Default is SEND_COOLDOWN_MS. */
+  readonly sendCooldownMs?: number;
 }
-
-const BODY_LIMIT = 64 * 1024;
 
 async function readBody(req: IncomingMessage): Promise<string> {
   const chunks: Buffer[] = [];
@@ -148,12 +159,22 @@ export async function startSimulatorServer(
   device: SimulatedDevice,
   options: SimulatorServerOptions,
 ): Promise<SimulatorServer> {
-  // The host owns the slot state and the send chain. The panel only
-  // drives it.
+  // The host owns the slot state and the send chain. The panel drives
+  // it until the first session event. After that, sessions win.
   const host = createHost(device, options);
   const frameLog: FrameLogEntry[] = [];
   let sessions: Sessions = emptySessions;
+  let source: FeedState["source"] = "panel";
   const silenceMs = options.sessionSilenceMs ?? SESSION_SILENCE_MS;
+  let lastNowMs = 0;
+
+  const feedState = (): FeedState => ({
+    source,
+    sessionIds:
+      source === "sessions"
+        ? selectSessionIds(sessions)
+        : AGENT_KEYS.map(() => null),
+  });
 
   const publishSessions = async (): Promise<void> => {
     const signals = selectSlots(sessions);
@@ -166,14 +187,26 @@ export async function startSimulatorServer(
     }
   };
 
-  const applySession = async (
+  // One chain. A lighting send waits between reports, and a second
+  // post must not read the map before the first write lands.
+  let applyChain: Promise<void> = Promise.resolve();
+  const applySession = (
     event: SessionEvent,
     nowMs = Date.now(),
   ): Promise<void> => {
-    const next = reduceSessions(sessions, event, nowMs);
-    if (next === sessions) return;
-    sessions = next;
-    await publishSessions();
+    const run = applyChain.then(async () => {
+      const stamped = nowMs > lastNowMs ? nowMs : lastNowMs + 1;
+      lastNowMs = stamped;
+      const next = reduceSessions(sessions, event, stamped);
+      if (next === sessions) return;
+      sessions = next;
+      await publishSessions();
+    });
+    applyChain = run.then(
+      () => undefined,
+      () => undefined,
+    );
+    return run;
   };
 
   const wss = new WebSocketServer({ noServer: true });
@@ -183,6 +216,10 @@ export async function startSimulatorServer(
     for (const client of wss.clients) {
       if (client.readyState === client.OPEN) client.send(text);
     }
+  };
+
+  const broadcastFeed = (): void => {
+    broadcast({ type: "feed", feed: feedState() });
   };
 
   host.onDriver((driver) => {
@@ -226,7 +263,18 @@ export async function startSimulatorServer(
       if (record.act === 0) device.releaseKey(record.key);
       return;
     }
+    if (
+      record.type === "forget" &&
+      source === "sessions" &&
+      typeof record.sessionId === "string"
+    ) {
+      await applySession({ kind: "ended", sessionId: record.sessionId });
+      broadcastFeed();
+      return;
+    }
     if (record.type === "slot" && typeof record.slot === "number") {
+      // Sessions own the keys. The panel cannot override them.
+      if (source === "sessions") return;
       await host.setSlot(record.slot, {
         ...(isSlotStatus(record.status) ? { status: record.status } : {}),
         ...(typeof record.pulsing === "boolean"
@@ -244,18 +292,31 @@ export async function startSimulatorServer(
   };
 
   const httpServer = createServer(async (req, res) => {
+    // No authentication. The loopback bind is the only guard.
+    // The handler does not log the body.
     if (req.method === "POST" && req.url === "/events") {
-      let event: ReturnType<typeof parseModEvent>;
+      let payload: unknown;
       try {
         const text = await readBody(req);
-        event = parseModEvent(JSON.parse(text));
+        payload = text.length === 0 ? undefined : JSON.parse(text);
       } catch {
-        // Bad JSON or a huge body. Do not log the body.
         res.writeHead(204);
         res.end();
         return;
       }
-      if (event) await applySession(toSessionEvent(event));
+      const modEvent = parseModEvent(payload);
+      const sessionEvent = modEvent
+        ? toSessionEvent(modEvent)
+        : sessionEventFromHook(payload);
+      try {
+        if (sessionEvent) {
+          source = "sessions";
+          await applySession(sessionEvent);
+          broadcastFeed();
+        }
+      } catch {
+        // The body stays out of the log.
+      }
       res.writeHead(204);
       res.end();
       return;
@@ -303,6 +364,7 @@ export async function startSimulatorServer(
           },
           state: dumpState(device.lighting),
           driver: host.driver,
+          feed: feedState(),
           log: frameLog,
         }),
       );
@@ -324,10 +386,17 @@ export async function startSimulatorServer(
       : options.port;
 
   const liveness = setInterval(() => {
-    const next = expireSilentSessions(sessions, Date.now(), silenceMs);
-    if (next === sessions) return;
-    sessions = next;
-    void publishSessions();
+    const run = applyChain.then(async () => {
+      const next = expireSilentSessions(sessions, Date.now(), silenceMs);
+      if (next === sessions) return;
+      sessions = next;
+      await publishSessions();
+      broadcastFeed();
+    });
+    applyChain = run.then(
+      () => undefined,
+      () => undefined,
+    );
   }, options.livenessIntervalMs ?? 1000);
 
   return {
