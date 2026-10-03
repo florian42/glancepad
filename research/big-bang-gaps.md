@@ -21,6 +21,9 @@ replug. The repository has no udev rule. Issue 9 names
 - **Uncertain.** See whether the next lighting message works after a
   send fails mid-message.
 - **Verified.** Confirm that Linux opens the keypad without root.
+- **Uncertain.** The breath timing on the keypad is unread.
+- **Uncertain.** The snake shape on the ring is unread.
+- **Uncertain.** The LED count on the keypad is unread.
 
 ## Interactive terminal
 
