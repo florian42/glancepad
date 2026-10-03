@@ -154,6 +154,14 @@
     background: var(--panel-2); color: var(--text);
     border: 1px solid var(--edge); border-radius: 5px; padding: 2px 4px;
   }
+  #source-line { margin: 0 0 8px; color: var(--muted); font-size: 12px; }
+  td.session { color: var(--muted); font-size: 11px; font-family: ui-monospace, monospace; }
+  button.forget {
+    font: inherit; font-size: 12px;
+    background: var(--panel-2); color: var(--text);
+    border: 1px solid var(--edge); border-radius: 5px;
+    padding: 2px 6px; cursor: pointer;
+  }
   .brightness { display: flex; gap: 10px; align-items: center; margin-top: 10px; }
   .brightness input { flex: 1; }
 
@@ -204,9 +212,10 @@
   </section>
   <section>
     <h2>Driver — slot statuses</h2>
+    <p id="source-line">source: panel</p>
     <table class="driver">
       <thead>
-        <tr><th>Key</th><th>Status</th><th>Sel</th><th>Pulse</th></tr>
+        <tr><th>Key</th><th>Status</th><th>Sel</th><th>Pulse</th><th>Session</th><th></th></tr>
       </thead>
       <tbody id="driver-rows"></tbody>
     </table>
@@ -253,7 +262,9 @@
         <td><select data-slot="${slot}">${layout.statuses.map(
           (s) => `<option>${s}</option>`).join("")}</select></td>
         <td><input type="radio" name="selected" data-slot="${slot}" /></td>
-        <td><input type="checkbox" data-slot="${slot}" /></td>`;
+        <td><input type="checkbox" data-slot="${slot}" /></td>
+        <td class="session" data-session="${slot}"></td>
+        <td><button type="button" class="forget" data-forget="${slot}" hidden>forget</button></td>`;
       return row;
     });
     const noneRow = document.createElement("tr");
@@ -285,9 +296,11 @@
         for (const entry of message.log) appendLog(entry);
         paintState(message.state);
         paintDriver(message.driver);
+        paintFeed(message.feed);
       }
       if (message.type === "state") paintState(message.state);
       if (message.type === "driver") paintDriver(message.driver);
+      if (message.type === "feed") paintFeed(message.feed);
       if (message.type === "frame") appendLog(message.entry);
     };
   };
@@ -328,6 +341,12 @@
     }
     if (event.target.matches('input[type="checkbox"]'))
       send({ type: "slot", slot, pulsing: event.target.checked });
+  });
+  $("driver-rows").addEventListener("click", (event) => {
+    const button = event.target.closest("button.forget");
+    if (!button || button.hidden) return;
+    const sessionId = button.dataset.sessionId;
+    if (sessionId) send({ type: "forget", sessionId });
   });
   $("brightness").addEventListener("change", (event) => {
     send({ type: "brightness", value: Number(event.target.value) });
@@ -381,6 +400,29 @@
       document.querySelector('input[type="radio"][data-slot="-1"]').checked = true;
     $("brightness").value = driver.brightness;
     $("brightness-value").textContent = driver.brightness.toFixed(2);
+  };
+
+  const paintFeed = (feed) => {
+    if (!layout || !feed) return;
+    $("source-line").textContent = `source: ${feed.source}`;
+    const locked = feed.source === "sessions";
+    feed.sessionIds.forEach((id, index) => {
+      const cell = document.querySelector(`td.session[data-session="${index}"]`);
+      const button = document.querySelector(`button.forget[data-forget="${index}"]`);
+      const select = document.querySelector(`select[data-slot="${index}"]`);
+      const radio = document.querySelector(`input[type="radio"][data-slot="${index}"]`);
+      const pulse = document.querySelector(`input[type="checkbox"][data-slot="${index}"]`);
+      if (cell) cell.textContent = id ? id.slice(0, 8) : "";
+      if (button) {
+        button.hidden = !id;
+        button.dataset.sessionId = id ?? "";
+      }
+      if (select) select.disabled = locked;
+      if (radio) radio.disabled = locked;
+      if (pulse) pulse.disabled = locked;
+    });
+    const none = document.querySelector('input[type="radio"][data-slot="-1"]');
+    if (none) none.disabled = locked;
   };
 
   /* ── Frame log ── */

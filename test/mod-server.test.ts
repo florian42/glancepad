@@ -1,6 +1,5 @@
-// Mod events on the running simulator. Hook bodies do not light keys
-// and are not logged. Issue 6 is not on this branch, so a test seeds
-// the working status through applySession.
+// Mod events and settings hooks share POST /events. Unknown bodies
+// stay ignored. The server does not log the body.
 
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { SimulatedDevice } from "../src/simulator/index.js";
@@ -90,7 +89,7 @@ describe("POST /events from the mod", () => {
     });
   });
 
-  it("ignores a settings-hook body and does not log it", async () => {
+  it("applies a settings hook and ignores an unknown body", async () => {
     server = await startSimulatorServer(new SimulatedDevice(), { port: 0 });
     await server.applySession({ kind: "prompted", sessionId: "s" });
     const log = vi.spyOn(console, "log").mockImplementation(() => {});
@@ -107,6 +106,7 @@ describe("POST /events from the mod", () => {
         prompt: SECRET,
       }),
     ).toBe(204);
+    expect((await stateOf(server)).slots.AG00?.color).toBe("#00ff4c");
     expect(
       await post(server, {
         source: "mod",
@@ -117,7 +117,7 @@ describe("POST /events from the mod", () => {
       }),
     ).toBe(204);
 
-    expect((await stateOf(server)).slots.AG00?.color).toBe("#304ffe");
+    expect((await stateOf(server)).slots.AG00?.color).toBe("#00ff4c");
     const text = [log, error, warn, info, debug]
       .flatMap((spy) => spy.mock.calls.flat())
       .map(String)

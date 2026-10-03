@@ -55,9 +55,10 @@ claude --plugin-dir scripts/glancepad-mod
 ```
 
 A watched session leaves the keys when no event and no heartbeat
-arrive for 15 seconds. Settings-hook delivery is issue 6. It is not
-on this branch. This server accepts only the mod's events. It ignores
-a hook body. It does not log that body.
+arrive for 15 seconds. A hooks-only session stays until it ends.
+Settings hooks post to the same `/events` path. The snippet is
+[`scripts/glancepad.settings.json`](scripts/glancepad.settings.json).
+An unknown body is ignored. The server does not log the body.
 
 ## What is here
 

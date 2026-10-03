@@ -13,7 +13,7 @@ import type { SessionEvent } from "../sessions/index.js";
 
 export const MOD_SOURCE = "mod" as const;
 
-/** Loopback path the mod posts to. Issue 6 will share this path. */
+/** Loopback path the mod posts to. Settings hooks share this path. */
 export const MOD_EVENTS_PATH = "/events";
 
 const MAX_SESSION_ID = 200;
