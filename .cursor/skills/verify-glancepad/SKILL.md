@@ -1,6 +1,6 @@
 ---
 name: verify-glancepad
-description: Verify the glancepad simulator. Use when you start pnpm sim, check key lighting from a session event, check the selection window, or check a mod interrupt or heartbeat.
+description: Verify the glancepad simulator. Use when you start pnpm sim, check key lighting from a session event, check the selection window, check a mod interrupt or heartbeat, check a key press, or check the frame log.
 ---
 
 # verify-glancepad
@@ -72,7 +72,7 @@ Write the proof in `$GLANCEPAD_EVIDENCE`. Save the action and the state that fol
 - `action.json` holds the method, the URL, the body, and the HTTP status.
 - `state.json` is the `pnpm sim:state` output after that action.
 - `page.png` is a screenshot taken after the page matches.
-- `page.txt` is the selector text from that same moment.
+- `page.txt` is the selector text from that same moment. Each `frame:` line is one frame-log row.
 - `doctor.txt` is the doctor output.
 - `sim.log` and `run.json` are written by launch.
 
@@ -83,10 +83,11 @@ node .cursor/skills/verify-glancepad/scripts/screenshot.mjs \
   --url "http://127.0.0.1:${GLANCEPAD_PORT}/" \
   --out "$GLANCEPAD_EVIDENCE/page.png" \
   --report "$GLANCEPAD_EVIDENCE/page.txt" \
-  --until 'document.querySelector("#source-line")?.textContent === "source: sessions" && document.querySelector("[data-key=AG00]")?.classList.contains("fx-solid")'
+  --act '(() => { const button = document.querySelector("button.key[data-key=AG00]"); button.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true, pointerId: 1 })); window.dispatchEvent(new PointerEvent("pointerup", { bubbles: true, pointerId: 1 })); })()' \
+  --until 'document.querySelector("#conn")?.textContent === "connected" && [...document.querySelectorAll("#log li")].some((row) => row.textContent.includes("v.oai.hid") && row.textContent.includes("AG00"))'
 ```
 
-That `--until` expression is the session-lighting check. Each feature file has the expression for its own page.
+`--act` runs once after `[data-key=AG00]` exists. `--until` is the check for that feature. Each feature file has its own pair. The command above is the key-press check.
 
 The helper uses Chrome. Set `CHROME_PATH` when `google-chrome` is not on `PATH`. Evidence is done when `action.json`, `state.json`, and `page.png` are in the evidence directory.
 
@@ -107,6 +108,6 @@ The scripts live in `.cursor/skills/verify-glancepad/scripts/`. Run them from th
 ```sh
 .cursor/skills/verify-glancepad/scripts/launch.sh
 .cursor/skills/verify-glancepad/scripts/doctor.sh
-node .cursor/skills/verify-glancepad/scripts/screenshot.mjs --url "http://127.0.0.1:${GLANCEPAD_PORT}/" --out "$GLANCEPAD_EVIDENCE/page.png" --report "$GLANCEPAD_EVIDENCE/page.txt"
+node .cursor/skills/verify-glancepad/scripts/screenshot.mjs --url "http://127.0.0.1:${GLANCEPAD_PORT}/" --out "$GLANCEPAD_EVIDENCE/page.png" --report "$GLANCEPAD_EVIDENCE/page.txt" --until 'document.querySelector("#conn")?.textContent === "connected"'
 .cursor/skills/verify-glancepad/scripts/cleanup.sh
 ```

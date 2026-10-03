@@ -43,9 +43,9 @@ node .cursor/skills/verify-glancepad/scripts/screenshot.mjs \
   --url "http://127.0.0.1:${GLANCEPAD_PORT}/" \
   --out "$GLANCEPAD_EVIDENCE/page.png" \
   --report "$GLANCEPAD_EVIDENCE/page.txt" \
-  --until 'document.querySelector("#source-line")?.textContent === "source: sessions" && document.querySelector("[data-key=AG00]")?.classList.contains("fx-solid")'
+  --until 'document.querySelector("#source-line")?.textContent === "source: sessions" && document.querySelector("[data-key=AG00]")?.classList.contains("fx-solid") && getComputedStyle(document.querySelector("[data-key=AG00]")).getPropertyValue("--zone-color").trim() === "rgb(48 79 254)" && document.querySelectorAll("select")[0].disabled'
 ```
 
 ## Gotchas
 
-The server answers 204 for an unknown body and for invalid JSON. Compare the state before and after the post. `SessionStart` with `source` `compact` keeps the current status. A later tool event after `Stop` does not turn the key blue again. `select[data-slot]` and the selection radios do nothing after the source is `sessions`. The brightness slider `#brightness` still changes brightness. Leave it at `1` during this check. `button.forget[data-forget="0"]` ends that session. A second session moves onto `AG00` and shifts the older session right.
+The server answers 204 for an unknown body and for invalid JSON. Compare the state before and after the post. Drive this check from an off key. A key that is already working stays as it is. `publishSessions` in `src/ui/server.ts` skips that status. `SessionStart` with `source` `compact` keeps the current status. A later tool event after `Stop` does not turn the key blue again. `select[data-slot]` and the selection radios do nothing after the source is `sessions`. The brightness slider `#brightness` still changes brightness. Leave it at `1` during this check. `button.forget[data-forget="0"]` ends that session. A second session moves onto `AG00` and shifts the older session right.

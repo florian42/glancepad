@@ -1,5 +1,7 @@
 #!/usr/bin/env node
 // Opens the simulator page in Chrome and saves a screenshot.
+// --act is optional page JavaScript. It runs once after AG00 exists.
+// --until is a page expression. The helper polls it until it is true.
 
 import { spawn } from "node:child_process";
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
@@ -16,6 +18,7 @@ const opt = (name, fallback) => {
 const url = opt("--url");
 const out = opt("--out");
 const report = opt("--report");
+const act = opt("--act");
 const until =
   opt("--until") ??
   'document.querySelector("#conn")?.textContent === "connected"';
@@ -23,7 +26,7 @@ const timeoutMs = Number(opt("--timeout", "15000"));
 
 if (!url || !out || !report) {
   console.error(
-    "usage: screenshot.mjs --url URL --out FILE.png --report FILE.txt [--until JS] [--timeout MS]",
+    "usage: screenshot.mjs --url URL --out FILE.png --report FILE.txt [--act JS] [--until JS] [--timeout MS]",
   );
   process.exit(1);
 }
@@ -139,6 +142,16 @@ try {
   await page.ready;
   await page.send("Runtime.enable");
   const deadline = Date.now() + timeoutMs;
+  const keypadReady =
+    'document.querySelector("#conn")?.textContent === "connected" && Boolean(document.querySelector("[data-key=AG00]"))';
+  let ready = false;
+  while (Date.now() < deadline) {
+    ready = await evaluate(page, `Boolean(${keypadReady})`);
+    if (ready) break;
+    await new Promise((resolve) => setTimeout(resolve, 100));
+  }
+  if (!ready) throw new Error("timeout waiting for the keypad");
+  if (act) await evaluate(page, act);
   let matched = false;
   while (Date.now() < deadline) {
     matched = await evaluate(page, `Boolean(${until})`);
@@ -156,7 +169,15 @@ try {
       ag00Class: document.querySelector("[data-key=AG00]")?.className ?? "",
       ag00Zone: document.querySelector("[data-key=AG00]") ? getComputedStyle(document.querySelector("[data-key=AG00]")).getPropertyValue("--zone-color").trim() : "",
       ringClass: document.querySelector("#ring")?.className ?? "",
-      session: document.querySelector('[data-session="0"]')?.textContent ?? ""
+      act06Class: document.querySelector("[data-key=ACT06]")?.className ?? "",
+      selectDisabled: Boolean(document.querySelector('select[data-slot="0"]')?.disabled),
+      session: document.querySelector('[data-session="0"]')?.textContent ?? "",
+      frames: [...document.querySelectorAll("#log li")].map((li) => {
+        const time = li.querySelector("time")?.textContent ?? "";
+        const dir = li.querySelector("span")?.textContent ?? "";
+        const text = li.innerText.replace(/\\s+/g, " ").trim();
+        return time + " | " + dir + " | " + text;
+      })
     })`,
   );
   const shot = await page.send("Page.captureScreenshot", { format: "png" });
@@ -168,7 +189,10 @@ try {
     `ag00Class: ${facts.ag00Class}`,
     `ag00Zone: ${facts.ag00Zone}`,
     `ringClass: ${facts.ringClass}`,
+    `act06Class: ${facts.act06Class}`,
+    `selectDisabled: ${facts.selectDisabled}`,
     `session: ${facts.session}`,
+    ...facts.frames.map((frame) => `frame: ${frame}`),
   ];
   await writeFile(report, `${lines.join("\n")}\n`);
   console.log(lines.join("\n"));

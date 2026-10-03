@@ -44,7 +44,7 @@ node .cursor/skills/verify-glancepad/scripts/screenshot.mjs \
   --url "http://127.0.0.1:${GLANCEPAD_PORT}/" \
   --out "$GLANCEPAD_EVIDENCE/page.png" \
   --report "$GLANCEPAD_EVIDENCE/page.txt" \
-  --until 'document.querySelector("#source-line")?.textContent === "source: sessions" && document.querySelector("[data-key=AG00]")?.classList.contains("fx-solid")'
+  --until 'document.querySelector("#source-line")?.textContent === "source: sessions" && getComputedStyle(document.querySelector("[data-key=AG00]")).getPropertyValue("--zone-color").trim() === "rgb(255 255 255)"'
 ```
 
 Post the heartbeat after the interrupt.

@@ -28,10 +28,11 @@ node .cursor/skills/verify-glancepad/scripts/screenshot.mjs \
   --url "http://127.0.0.1:${GLANCEPAD_PORT}/" \
   --out "$GLANCEPAD_EVIDENCE/page.png" \
   --report "$GLANCEPAD_EVIDENCE/page.txt" \
+  --act '(() => { const button = document.querySelector("button.key[data-key=AG00]"); button.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true, pointerId: 1 })); window.dispatchEvent(new PointerEvent("pointerup", { bubbles: true, pointerId: 1 })); })()' \
   --until 'document.querySelector("#conn")?.textContent === "connected" && [...document.querySelectorAll("#log li")].some((row) => row.textContent.includes("v.oai.hid") && row.textContent.includes("AG00"))'
 ```
 
-Press the key in the browser before the `--until` check can pass. Save the press as `action.json` with the selector and the act. Save `state.json` from `pnpm sim:state` after the release.
+Save the press as `action.json` with the selector `button.key[data-key="AG00"]` and act `1`. Save `state.json` from `pnpm sim:state` after the helper returns.
 
 ## Gotchas
 

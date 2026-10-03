@@ -34,10 +34,15 @@ node .cursor/skills/verify-glancepad/scripts/screenshot.mjs \
   --url "http://127.0.0.1:${GLANCEPAD_PORT}/" \
   --out "$GLANCEPAD_EVIDENCE/page.png" \
   --report "$GLANCEPAD_EVIDENCE/page.txt" \
+  --act '(() => { const select = document.querySelectorAll("select")[0]; select.value = "working"; select.dispatchEvent(new Event("change", { bubbles: true })); const radio = document.querySelectorAll("input[type=radio]")[0]; radio.checked = true; radio.dispatchEvent(new Event("change", { bubbles: true })); })()' \
   --until 'document.querySelector("#selection-lighting")?.textContent === "Selection lighting on, 4000 ms." && document.querySelector("#ring")?.classList.contains("fx-snake") && document.querySelector("[data-key=AG00]")?.classList.contains("fx-breath")'
 ```
 
-The screenshot helper only observes the page. Set the select and the radio in the browser before you run it. Save `state.json` from `pnpm sim:state` during the same 4000 ms window.
+Save `state.json` from `pnpm sim:state` during that same 4000 ms window. Run the helper again with no `--act` to catch the expired window. Use `--timeout 12000` and this `--until` expression.
+
+```sh
+--until 'document.querySelector("#selection-lighting")?.textContent === "Selection lighting off." && document.querySelector("#ring")?.classList.contains("fx-snake") && document.querySelector("[data-key=AG00]")?.classList.contains("fx-breath")'
+```
 
 After 4000 ms, expect `driver.selectionVisible` false and `keys.effect` `off`. Expect `ambient.effect` `snake`. Expect `slots.AG00.effect` `breath`. Expect `driver.slots[0].selected` true. `#selection-lighting` reads `Selection lighting off.`
 
