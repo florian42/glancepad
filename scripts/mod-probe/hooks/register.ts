@@ -1,7 +1,20 @@
 import type { EngineInterface, Register } from "claude-code";
 import { atom, update } from "claude-code";
 
-import type { ProbeRecord } from "../types";
+// The record type lives here, not in a declaration file: the CI marker
+// scan refuses every tracked .d.ts file, because vendor typings are
+// .d.ts files.
+type ProbeRecord = {
+  at: number;
+  event: string;
+  detail: Record<string, unknown>;
+};
+
+declare module "claude-code" {
+  interface PluginState {
+    "glancepad-probe": { records: ProbeRecord[] };
+  }
+}
 
 // A throwaway probe: it records which mod events fire, and in what order,
 // so research/claude-code-mods-as-state-source.md can cite observed behaviour.
