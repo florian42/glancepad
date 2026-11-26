@@ -134,3 +134,33 @@ describe("sessionEventFromHook", () => {
     expect(sessionEventFromHook("Stop")).toBeUndefined();
   });
 });
+
+describe("scripts/glancepad.settings.json", () => {
+  // Observed on Claude Code 2.1.332: a `type: "http"` hook prints a
+  // "hook failed" notice for each event when nothing listens on the
+  // port. A command hook that ends in `|| true` stays silent.
+  it("registers a silent command hook for each event the adapter reads", async () => {
+    const { readFile } = await import("node:fs/promises");
+    const { DEFAULT_PORT } = await import("../src/ui/port.js");
+    const snippet = JSON.parse(
+      await readFile(
+        new URL("../scripts/glancepad.settings.json", import.meta.url),
+        "utf8",
+      ),
+    ) as {
+      hooks: Record<string, { hooks: { type: string; command: string }[] }[]>;
+    };
+    for (const [name, groups] of Object.entries(snippet.hooks)) {
+      const hooks = groups.flatMap((group) => group.hooks);
+      expect(hooks).toHaveLength(1);
+      expect(hooks[0]?.type).toBe("command");
+      expect(hooks[0]?.command).toContain(
+        `http://127.0.0.1:${DEFAULT_PORT}/events`,
+      );
+      expect(hooks[0]?.command).toMatch(/\|\| true$/);
+      expect(
+        sessionEventFromHook({ hook_event_name: name, session_id: "s" }),
+      ).toBeDefined();
+    }
+  });
+});
