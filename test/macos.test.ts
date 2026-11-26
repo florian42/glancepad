@@ -72,6 +72,9 @@ describe("appBundleOf", () => {
     expect(appBundleOf("/bin/zsh")).toBeUndefined();
     expect(appBundleOf("-zsh")).toBeUndefined();
     expect(appBundleOf("tmux")).toBeUndefined();
+    expect(
+      appBundleOf("/Users/me/work/my.app/node_modules/.bin/claude"),
+    ).toBeUndefined();
   });
 });
 

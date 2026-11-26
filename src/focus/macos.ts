@@ -26,7 +26,7 @@ export interface MacProcess {
 }
 
 export interface MacDeps {
-  /** Runs `ps -o ppid=,comm= -p <pid>`. Resolves with its stdout. */
+  /** Runs `ps -ww -o ppid=,comm= -p <pid>`. Resolves with its stdout. */
   readonly ps?: (pid: number) => Promise<string>;
   /** Runs `open` with these arguments. Rejects on a failure. */
   readonly open?: (args: readonly string[]) => Promise<void>;
@@ -36,7 +36,8 @@ const runPs = (pid: number): Promise<string> =>
   new Promise((resolve, reject) => {
     execFile(
       "ps",
-      ["-o", "ppid=,comm=", "-p", String(pid)],
+      // `-ww`: without it, `ps` cuts a long path at 80 columns.
+      ["-ww", "-o", "ppid=,comm=", "-p", String(pid)],
       { timeout: PS_TIMEOUT_MS },
       (error, stdout) => (error ? reject(error) : resolve(stdout)),
     );
@@ -59,10 +60,12 @@ export function parsePsLine(text: string): MacProcess | undefined {
 /**
  * Returns the application bundle that contains an executable, or
  * `undefined` when the executable is not in a bundle. A helper in a
- * nested bundle gives the outer bundle, which owns the windows.
+ * nested bundle gives the outer bundle, which owns the windows. A
+ * directory with a name that ends in `.app` and has no `Contents`
+ * directory is not a bundle.
  */
 export function appBundleOf(command: string): string | undefined {
-  return /^(\/.*?\.app)\//.exec(command)?.[1];
+  return /^(\/.*?\.app)\/Contents\//.exec(command)?.[1];
 }
 
 export function createMacFocuser(deps: MacDeps = {}): WindowFocuser {

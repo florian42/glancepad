@@ -67,8 +67,9 @@ files of the
   app accepts the same link, and `open` brings the app to the front.
   `open` does that for a link by default; the option `-g` prevents it
   (`man open`).
-- A terminal session: `ps -o ppid=,comm= -p <pid>` for each ancestor,
-  until the executable is in a `<name>.app` bundle. `open -a <bundle>`
+- A terminal session: `ps -ww -o ppid=,comm= -p <pid>` for each
+  ancestor, until the executable is in a `<name>.app/Contents/`
+  directory. `open -a <bundle>`
   then activates that application. **Uncertain:** `ps -o comm=` prints
   the full path of the executable on macOS. On Linux it prints a short
   name, so this machine cannot show it.
@@ -177,7 +178,7 @@ issue contains the same list.
 5. `pnpm hooks:install`, then `pnpm keypad`. Start one new session in
    a terminal and one in Claude Desktop. Report the output of
    `pnpm sim:state`, and say which keys light.
-6. In the terminal of that session, run `ps -o ppid=,comm= -p $$` and
+6. In the terminal of that session, run `ps -ww -o ppid=,comm= -p $$` and
    report the output. Then put a different application in front and
    press the agent key of each session. Report which application came
    to the front, and each `focus failed` line in the log of `pnpm keypad`.
