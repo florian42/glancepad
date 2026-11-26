@@ -85,7 +85,28 @@ The key id comes from reading. No keypad confirmed it.
 | Press the key while latched | `talk-stop`. The key ignores presses for the next 350 ms |
 
 glancepad does not record audio. Each action runs a shell command that
-you set:
+you set in the configuration file:
+
+```json
+{
+  "talk": {
+    "start": "<command>",
+    "stop": "<command>"
+  }
+}
+```
+
+The file is `$XDG_CONFIG_HOME/glancepad/config.json`. When
+`XDG_CONFIG_HOME` is not set, the file is
+`~/.config/glancepad/config.json`. glancepad reads the file at its
+start and prints the path. A file that is not valid writes one line to
+the log, and glancepad starts with no commands.
+
+To invoke a system-wide shortcut, set the command that sends the
+shortcut, or set the command that the shortcut runs. Use the same
+command for `start` and `stop` when the shortcut is a toggle.
+
+An environment variable replaces the same command from the file:
 
 ```sh
 GLANCEPAD_TALK_START='<command>' GLANCEPAD_TALK_STOP='<command>' pnpm sim

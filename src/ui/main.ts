@@ -7,8 +7,10 @@ import { linuxKeypadBackend } from "../device/hidraw.js";
 import { HidTransport } from "../device/hidtransport.js";
 import { createHyprlandFocuser, readHostSessionId } from "../focus/index.js";
 import { SimulatedDevice } from "../simulator/index.js";
+import { configPath, loadConfig, mergeTalkCommands } from "./config.js";
 import { DEFAULT_PORT } from "./port.js";
 import { startSimulatorServer } from "./server.js";
+import { talkCommandsFromEnv } from "./talkaction.js";
 
 const flag = process.argv.indexOf("--device");
 const deviceKind =
@@ -41,8 +43,15 @@ if (deviceKind === "hid") {
 
 const port = Number(process.env.GLANCEPAD_PORT ?? DEFAULT_PORT);
 const device = new SimulatedDevice();
+const configFile = configPath(process.env);
+const config = loadConfig(configFile);
+const talkCommands = mergeTalkCommands(
+  config.talk,
+  talkCommandsFromEnv(process.env),
+);
 const server = await startSimulatorServer(device, {
   port,
+  talkCommands,
   // The first supported window system is Hyprland (issue 12).
   focuser: createHyprlandFocuser(),
   // A Claude Desktop session keeps its app session id in its record.
@@ -54,6 +63,11 @@ console.log(
   hardware === undefined
     ? "device: simulator"
     : "device: physical keypad, mirrored by the simulator page",
+);
+console.log(`config file         ${configFile}`);
+console.log(
+  `microphone key      start: ${talkCommands.start === undefined ? "no command" : "set"}, ` +
+    `stop: ${talkCommands.stop === undefined ? "no command" : "set"}`,
 );
 console.log(`glancepad simulator  http://localhost:${server.port}/`);
 console.log(`LED state and driver http://localhost:${server.port}/state`);
