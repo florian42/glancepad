@@ -138,6 +138,52 @@ second process. Sources:
 [keybindings](https://code.claude.com/docs/en/keybindings). A command
 also lets you use a different dictation tool.
 
+### Example: system-wide dictation with voxtype
+
+This example is **tested** on 2026-11-26 with a physical keypad, on
+Arch Linux with Hyprland, voxtype 1.3.1, and `wtype`. The owner held
+the microphone key, spoke, and the text appeared in the focused
+window. It works in Claude Desktop, because the text goes to the
+window that has the focus.
+
+[voxtype](https://voxtype.io) is a separate project. It records while
+its daemon is told to, transcribes on the machine, and types the text.
+
+1. Install `wtype` and voxtype, download a model, and install the
+   user service:
+
+   ```sh
+   sudo pacman -S --needed wtype
+   paru -S voxtype-bin
+   voxtype setup --download
+   voxtype setup systemd
+   ```
+
+2. Switch off the hotkey of voxtype in `~/.config/voxtype/config.toml`.
+   The keypad is then the only trigger, and voxtype does not need the
+   `input` group:
+
+   ```toml
+   [hotkey]
+   enabled = false
+   ```
+
+3. Set the two commands in the glancepad configuration file, then
+   restart glancepad:
+
+   ```json
+   {
+     "talk": {
+       "start": "voxtype record start",
+       "stop": "voxtype record stop"
+     }
+   }
+   ```
+
+Each command only signals the daemon, so it returns at once. A single
+short tap records for 350 ms, which is too short for speech. Not
+tested: the double-tap latch with voxtype.
+
 ### Example: Claude Code dictation on Hyprland
 
 This example is **not tested**. It needs a microphone and a terminal
