@@ -3,17 +3,22 @@ import {
   HEARTBEAT_INTERVAL_MS,
   heartbeatEvent,
   postModEvent,
-} from "../../../src/mods/report.ts";
+} from "./report.ts";
 
-// Optional glancepad mod. It posts an interrupt and a heartbeat.
+// Optional glancepad mod. It posts a heartbeat, and the turn ends
+// that send no Stop hook: Esc, and a denied permission dialog.
 // It does not post the events a settings hook already sends.
 // Load: claude --plugin-dir scripts/glancepad-mod
-// Targets Claude Code 2.1.287. The mod API is early access.
+// Observed on Claude Code 2.1.332. The mod API is early access.
 
 export const GLANCEPAD_EVENTS_URL = "http://127.0.0.1:4180/events";
 
 interface SessionStartEvent {
   readonly sessionId?: string;
+}
+
+interface TurnStartEvent {
+  readonly agentId?: string;
 }
 
 interface TurnCompleteEvent {
@@ -46,6 +51,18 @@ export interface ModOn {
     ) => Promise<unknown>,
   ): void;
   (
+    event: "turn.start",
+    hook: (
+      $: Dollar,
+      event: TurnStartEvent,
+      next: Next<TurnStartEvent>,
+    ) => Promise<unknown>,
+  ): void;
+  (
+    event: "classic.Stop" | "classic.StopFailure",
+    hook: ($: Dollar, event: unknown, next: Next<unknown>) => Promise<unknown>,
+  ): void;
+  (
     event: "turn.complete",
     hook: (
       $: Dollar,
@@ -58,6 +75,8 @@ export interface ModOn {
 export const register = (on: ModOn): void => {
   let sessionId = "";
   let timerOn = false;
+  // True after Stop or StopFailure in the current main turn.
+  let stopSeen = false;
 
   on("session.start", async ($, event, next) => {
     sessionId = await $.session.id();
@@ -76,11 +95,27 @@ export const register = (on: ModOn): void => {
     return next(event);
   });
 
+  on("turn.start", async (_$, event, next) => {
+    if (event.agentId == null) stopSeen = false;
+    return next(event);
+  });
+
+  on("classic.Stop", async (_$, event, next) => {
+    stopSeen = true;
+    return next(event);
+  });
+
+  on("classic.StopFailure", async (_$, event, next) => {
+    stopSeen = true;
+    return next(event);
+  });
+
   on("turn.complete", async ($, event, next) => {
     const fact = eventForTurn({
       sessionId: await $.session.id(),
       reason: event.reason,
       agentId: event.agentId,
+      stopSeen,
     });
     if (fact !== undefined) {
       await postModEvent(

@@ -2,3 +2,5 @@
 node_modules/
 coverage/
 *.tsbuildinfo
+# Claude Code writes this file when it loads a plugin from a folder.
+scripts/*/tsconfig.json

@@ -1,4 +1,5 @@
-// The optional mod posts an interrupt and a heartbeat. It stays silent
+// The optional mod posts a heartbeat, and the turn ends that send no
+// Stop hook (Esc, and a denied permission dialog). It stays silent
 // when the post fails. It does not post events a settings hook already
 // sends. Issue 10.
 
@@ -7,15 +8,19 @@ import {
   eventForTurn,
   HEARTBEAT_INTERVAL_MS,
   heartbeatEvent,
-  parseModEvent,
   postModEvent,
-} from "../src/mods/index.js";
+} from "../scripts/glancepad-mod/hooks/report.ts";
+import { parseModEvent } from "../src/mods/index.js";
 import { SESSION_SILENCE_MS } from "../src/sessions/index.js";
 import { DEFAULT_PORT } from "../src/ui/port.js";
 
 describe("eventForTurn", () => {
   it("posts one interrupt for an aborted turn", () => {
-    const event = eventForTurn({ sessionId: "s", reason: "aborted" });
+    const event = eventForTurn({
+      sessionId: "s",
+      reason: "aborted",
+      stopSeen: false,
+    });
     expect(event).toEqual({
       source: "mod",
       kind: "turn-ended",
@@ -32,16 +37,33 @@ describe("eventForTurn", () => {
   });
 
   it("posts nothing for hook outcomes and for a subagent turn", () => {
+    const s = { sessionId: "s", stopSeen: true };
     for (const reason of ["answer", "error", "refusal"]) {
-      expect(eventForTurn({ sessionId: "s", reason })).toBeUndefined();
+      expect(eventForTurn({ ...s, reason })).toBeUndefined();
+    }
+    for (const reason of ["error", "refusal"]) {
+      expect(eventForTurn({ ...s, reason, stopSeen: false })).toBeUndefined();
+    }
+    for (const reason of ["aborted", "answer"]) {
+      expect(
+        eventForTurn({ ...s, reason, stopSeen: false, agentId: "agent-1" }),
+      ).toBeUndefined();
     }
     expect(
-      eventForTurn({ sessionId: "s", reason: "aborted", agentId: "agent-1" }),
+      eventForTurn({ sessionId: "", reason: "aborted", stopSeen: false }),
     ).toBeUndefined();
-    expect(
-      eventForTurn({ sessionId: "s", reason: "answer", agentId: "agent-1" }),
-    ).toBeUndefined();
-    expect(eventForTurn({ sessionId: "", reason: "aborted" })).toBeUndefined();
+  });
+
+  it("posts an interrupt for an answer turn that sent no Stop", () => {
+    // Observed: a denied permission dialog ends the turn with reason
+    // `answer`, and no Stop hook fires.
+    const event = eventForTurn({
+      sessionId: "s",
+      reason: "answer",
+      stopSeen: false,
+    });
+    expect(event).toMatchObject({ outcome: "interrupted" });
+    expect(parseModEvent(event)).toEqual(event);
   });
 
   it("posts a heartbeat the parser accepts, and nothing else", () => {
@@ -72,7 +94,11 @@ describe("postModEvent", () => {
 
   it("posts the event JSON and no other fields", async () => {
     const bodies: string[] = [];
-    const event = eventForTurn({ sessionId: "s", reason: "aborted" });
+    const event = eventForTurn({
+      sessionId: "s",
+      reason: "aborted",
+      stopSeen: false,
+    });
     if (event === undefined) throw new Error("expected an interrupt");
     await postModEvent(async (body) => {
       bodies.push(body);
@@ -123,6 +149,8 @@ describe("register", () => {
     eventsUrl: string;
     failNext: boolean;
     start: (id: string) => Promise<void>;
+    turn: (agentId?: string) => Promise<void>;
+    stop: () => Promise<void>;
     complete: (reason: string, agentId?: string) => Promise<void>;
     beat: () => Promise<void>;
   }
@@ -189,6 +217,9 @@ describe("register", () => {
         dollar.session.id = async () => id;
         return call("session.start", {});
       },
+      turn: (agentId?: string) =>
+        call("turn.start", agentId === undefined ? {} : { agentId }),
+      stop: () => call("classic.Stop", {}),
       complete: (reason: string, agentId?: string) =>
         call("turn.complete", {
           reason,
@@ -198,9 +229,15 @@ describe("register", () => {
     };
   }
 
-  it("registers only session.start and turn.complete", async () => {
+  it("registers only the session start and the turn events", async () => {
     const mod = await harness();
-    expect(mod.events).toEqual(["session.start", "turn.complete"]);
+    expect(mod.events).toEqual([
+      "session.start",
+      "turn.start",
+      "classic.Stop",
+      "classic.StopFailure",
+      "turn.complete",
+    ]);
     expect(mod.eventsUrl).toBe(`http://127.0.0.1:${DEFAULT_PORT}/events`);
   });
 
@@ -208,11 +245,15 @@ describe("register", () => {
     const mod = await harness();
     await mod.start("session-1");
     expect(mod.posted).toEqual([]);
+    await mod.turn();
+    await mod.stop();
+    await mod.turn("subagent-9");
     await mod.complete("answer");
     await mod.complete("error");
     await mod.complete("refusal");
     await mod.complete("aborted", "subagent-9");
     expect(mod.posted).toEqual([]);
+    await mod.turn();
     await mod.complete("aborted");
     await mod.beat();
     expect(mod.posted.map((item) => JSON.parse(item.body))).toEqual([
@@ -229,6 +270,25 @@ describe("register", () => {
       expect(item.body).not.toContain("last_assistant_message");
       expect(item.body).not.toContain("agentId");
     }
+  });
+
+  it("posts an interrupt when a turn answers with no Stop", async () => {
+    const mod = await harness();
+    await mod.start("session-1");
+    await mod.turn();
+    await mod.stop();
+    await mod.complete("answer");
+    expect(mod.posted).toEqual([]);
+    await mod.turn();
+    await mod.complete("answer");
+    expect(mod.posted.map((item) => JSON.parse(item.body))).toEqual([
+      {
+        source: "mod",
+        kind: "turn-ended",
+        sessionId: "session-1",
+        outcome: "interrupted",
+      },
+    ]);
   });
 
   it("calls next when the post fails and writes nothing", async () => {
