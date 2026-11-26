@@ -39,7 +39,11 @@ export function onKeyEvent(
       if (parsed.message.method !== NOTIFY_KEYS) continue;
       const params = parsed.message.params;
       if (typeof params !== "object" || params === null) continue;
-      const { key, act } = params as Record<string, unknown>;
+      // The keypad names the member `k`. The simulated device and
+      // the vendor documentation name it `key` (docs/protocol.md §11).
+      const record = params as Record<string, unknown>;
+      const key = record.k ?? record.key;
+      const act = record.act;
       if (typeof key !== "string" || typeof act !== "number") continue;
       try {
         cb({ key, act });

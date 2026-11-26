@@ -20,9 +20,12 @@ bundle; class `WLDeviceCommImpl` (transport) and `WLRPCClient` (codec).
   function locally against our test messages. Its output matched our
   committed vectors byte for byte.
 
-**No constant is wire-verified, because no keypad is attached to this
-machine.** The capture format in [capture-format.md](capture-format.md)
-exists so one hardware session can clear this column.
+- `wire` — a physical keypad sent or accepted the value on 2026-11-26.
+  The evidence is in [protocol.md](protocol.md) §11. `wire differs`
+  means the keypad contradicts the value that we read.
+
+A keypad has now checked the rows marked `wire`. Each other row still
+has the status it had before the keypad arrived.
 
 ## Framing
 
@@ -53,7 +56,7 @@ exists so one hardware session can clear this column.
 | 18 | Id scheme | vendor host draws random ids; any in-range scheme valid; ours is sequential wrap | same | choice |
 | 19 | Request timeout | 10 000 ms | `WL` `_sendJsonRpcRequest`, `_sendLegacyRpcRequest` | read |
 | 20 | Send cooldown | 50 ms between queued sends | `WL` `enqueue`/`process` | read |
-| 21 | Notification: keys | `v.oai.hid` | `OAI` `notify_keys.d.ts` | read |
+| 21 | Notification: keys | `v.oai.hid` | `OAI` `notify_keys.d.ts` | read, wire |
 | 22 | Notification: joystick | `v.oai.rad` | same | read |
 | 23 | Error identifiers | `ALREADY_CONNECTED`, `TIMEOUT`, `WRITE_FAILED`, `DEVICE_DISCONNECTED` | `WL` `WLDeviceError` codes | read |
 
@@ -71,7 +74,7 @@ exists so one hardware session can clear this column.
 |---|---|---|---|---|
 | 27 | `act` values | `0` release, `1` press, `2` tick | `OAI` `hid_key.d.ts`; `SVC` | read |
 | 28 | Agent keys | `AG00`–`AG05` | `SVC`, `/^AG0([0-5])$/` | read |
-| 29 | Command keys | `ACT06`–`ACT12`, merged `ACT10_ACT11` | `SVC` | read |
+| 29 | Command keys | `ACT06`–`ACT12`, merged `ACT10_ACT11` | `SVC` | read, wire differs: a keypad sends `ACT10` and `ACT11`, never the merged id |
 | 30 | Encoder rotation | `ENC_CW`, `ENC_CC`, `act === 2` | `SVC` | read |
 | 31 | Color `working` | `0x304FFE` | `src-Cz_uUmVl.js` status→color map | read |
 | 32 | Color `unread` | `0x00FF4C` | same | read |
@@ -82,8 +85,8 @@ exists so one hardware session can clear this column.
 | 37 | Color `off` | `0x000000` | same | read |
 | 38 | Effect enum | 0 off, 1 solid, 2 snake, 3 rainbow, 4 breath, 5 gradient, 6 shallowBreath | `OAI` `oai_lighting_effect.d.ts` | read |
 | 39 | Key event payload | `{key, act}` | `OAI` `hid_key.d.ts` | read |
-| 40 | Joystick payload | `{angle, distance}`, polar, both normalized 0–1 | `OAI` `joystick_pos.d.ts` | read |
-| 41 | Encoder press | key id starts with `ENC`; `act` `1` press, `0` release | `SVC` | read |
+| 40 | Joystick payload | `{angle, distance}`, polar, both normalized 0–1 | `OAI` `joystick_pos.d.ts` | read, wire differs: a keypad sends `{a, d}` |
+| 41 | Encoder press | key id starts with `ENC`; `act` `1` press, `0` release | `SVC` | read, wire: `ENC_CLK` |
 | 42 | Lighting zones | `ambient` ring and `keys` backlight | `OAI` `oai_lighting_config.d.ts` | read |
 | 43 | `brightness` and `speed` | normalized 0–1 | `OAI` `oai_lighting_side.d.ts` | read |
 | 44 | Per-agent-key lighting | a separate thread-lighting array | `OAI` `thread_lighting.d.ts` | read |
@@ -93,7 +96,7 @@ exists so one hardware session can clear this column.
 | 48 | Zone-config params | `{ambient, keys}`, each `{e, b, s, m, c}`; `m` is always `0`, meaning unknown | `OAI` `rpc_api_oai.js`, `minimizeLightingSide` | read |
 | 49 | Per-slot lighting rules | `off` → all zero; selected or pulsing → `breath` at speed 0.4; otherwise `solid`; sync flags always false | `SVC` payload builders; `research/virtual-device-options.md` §6 | read |
 | 50 | Zone lighting rules | ambient: `snake` 0.4 while the selected slot works, `solid` in the status color while selection lighting is visible (4000 ms after selection), else `off`; keys: `solid` in the ambient color while visible, else `off` | same | read |
-| 51 | Response wire shape | `{result, id}` on success, `{error: {code, message}, id}` on failure; codes -32601/-32602 | no vendor writer exists — the firmware is unread | choice |
+| 51 | Response wire shape | `{result, id}` on success, `{error: {code, message}, id}` on failure; codes -32601/-32602 | no vendor writer exists — the firmware is unread | choice, wire differs: a keypad answers `{"result":{"ok":1},"id":N,"method":M}`, and errors with code 400 and `"id":null` |
 
 The earlier bundle reading established items 27–44
 (`research/virtual-device-options.md` §4); items 45–48 come from reading

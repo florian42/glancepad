@@ -4,22 +4,48 @@
 import { describe, expect, it } from "vitest";
 import { createHost } from "../src/device/host.js";
 import type { DeviceTransport } from "../src/device/transport.js";
-import { MAX_FRAGMENT, SEND_COOLDOWN_MS } from "../src/protocol/index.js";
-import { rawReport, toHex } from "./helpers.js";
+import {
+  feedRpcLine,
+  initialRpcAccumulator,
+  MAX_FRAGMENT,
+  SEND_COOLDOWN_MS,
+} from "../src/protocol/index.js";
+import { payloadOf, rawReport, toHex } from "./helpers.js";
 
 /** Records every report the host sends. Delivers nothing back. */
 class FakeTransport implements DeviceTransport {
   readonly sent: Uint8Array[] = [];
   readonly sentAt: number[] = [];
   connected = true;
+  /** Sends to reject, counted from the next send. Zero rejects none. */
+  failAtSend = 0;
+  /** The device is absent: each send rejects and takes nothing. */
+  refuse = false;
+  #connect: (() => void) | undefined;
 
   async send(report: Uint8Array): Promise<void> {
+    if (this.refuse) throw new Error("DEVICE_DISCONNECTED");
+    if (this.failAtSend > 0 && --this.failAtSend === 0) {
+      throw new Error("WRITE_FAILED");
+    }
     this.sentAt.push(Date.now());
     this.sent.push(Uint8Array.from(report));
   }
 
   onReport(): () => void {
     return () => {};
+  }
+
+  onConnect(cb: () => void): () => void {
+    this.#connect = cb;
+    return () => {
+      this.#connect = undefined;
+    };
+  }
+
+  /** The device connects, for the first time or again. */
+  connect(): void {
+    this.#connect?.();
   }
 
   async close(): Promise<void> {
@@ -38,6 +64,26 @@ const expectedReports = (text: string): string[] => {
     reports.push(toHex(rawReport(2, fragment)));
   }
   return reports;
+};
+
+/**
+ * Reads reports the way the device does: it joins the fragments and
+ * takes a message each time the text parses. Returns the methods of
+ * the complete messages. A fragment that follows a partial message
+ * never parses, so a missing method here means a bad boundary.
+ */
+const methodsIn = (reports: readonly Uint8Array[]): string[] => {
+  const methods: string[] = [];
+  let state = initialRpcAccumulator;
+  for (const report of reports) {
+    const text = new TextDecoder().decode(payloadOf(report));
+    const [next, result] = feedRpcLine(state, text);
+    state = next;
+    if (result?.ok && result.message.kind === "request") {
+      methods.push(result.message.method);
+    }
+  }
+  return methods;
 };
 
 const OFF_SLOT = (id: number) =>
@@ -109,6 +155,76 @@ describe("host", () => {
     const host = createHost(transport);
     await host.setSlot(6, { status: "working" });
     expect(transport.sent).toEqual([]);
+    host.close();
+  });
+
+  it("sends both lighting calls in full after a send fails mid-message", async () => {
+    const transport = new FakeTransport();
+    const QUIET_MS = 120;
+    const host = createHost(transport, {
+      sendCooldownMs: 0,
+      resyncQuietMs: QUIET_MS,
+    });
+    const silenced = console.error;
+    console.error = () => {};
+    try {
+      // The second report of the first message fails.
+      transport.failAtSend = 2;
+      await host.setSlot(0, { status: "working" });
+    } finally {
+      console.error = silenced;
+    }
+    expect(transport.sent).toHaveLength(1);
+    const failedAt = Date.now();
+
+    transport.sent.length = 0;
+    transport.sentAt.length = 0;
+    await host.setSlot(1, { status: "error" });
+    // The keypad drops the part after a silence. The host waits for it.
+    expect((transport.sentAt[0] ?? 0) - failedAt).toBeGreaterThanOrEqual(
+      QUIET_MS - 5,
+    );
+    // The first report starts a message. Both calls arrive, although
+    // the second change alone would alter one of them at most.
+    expect(methodsIn(transport.sent)).toEqual([
+      "v.oai.thstatus",
+      "v.oai.rgbcfg",
+    ]);
+    host.close();
+  });
+
+  it("does not wait after a send that an absent device refused", async () => {
+    const transport = new FakeTransport();
+    const host = createHost(transport, {
+      sendCooldownMs: 0,
+      resyncQuietMs: 60_000,
+    });
+    transport.connected = false;
+    transport.refuse = true;
+    await host.setSlot(0, { status: "working" });
+    transport.connected = true;
+    transport.refuse = false;
+    transport.connect();
+    await host.setBrightness(1);
+    expect(methodsIn(transport.sent)).toEqual([
+      "v.oai.thstatus",
+      "v.oai.rgbcfg",
+    ]);
+    host.close();
+  });
+
+  it("sends the full lighting when the device connects", async () => {
+    const transport = new FakeTransport();
+    const host = createHost(transport, { sendCooldownMs: 0 });
+    await host.setSlot(0, { status: "working" });
+    transport.sent.length = 0;
+
+    transport.connect();
+    await host.setBrightness(1);
+    expect(methodsIn(transport.sent)).toEqual([
+      "v.oai.thstatus",
+      "v.oai.rgbcfg",
+    ]);
     host.close();
   });
 });

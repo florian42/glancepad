@@ -16,12 +16,16 @@ switching windows.
 ## Status
 
 Early. The wire protocol is implemented and tested in
-[`src/protocol/`](src/protocol/), and a human-usable simulator exists —
-see below.
+[`src/protocol/`](src/protocol/), a human-usable simulator exists, and
+hardware mode drives a physical keypad on Linux.
 
-The device protocol has been worked out by reading and is recorded in
-[`research/`](research/), but **nothing has been tested against hardware**.
-Every device-facing claim is marked as verified-by-reading or unverified.
+We tested hardware mode with one keypad on 2026-11-26. The keypad
+opened without root, the six agent keys showed the session colors, key
+and encoder events arrived, and the lighting returned after an unplug
+and a replug. [`docs/protocol.md`](docs/protocol.md) §11 records what
+the keypad sent, and what is still unread: the LED count, the exact
+breath period, and the snake shape. macOS and Windows have no hardware
+mode yet ([ADR-0003](docs/adr/0003-hid-access-through-hidraw.md)).
 
 ## Run the simulator
 
@@ -96,6 +100,33 @@ that has the focus, and the session that wrote it had neither.
 The window rule selects one kitty window. Change it when you use
 ghostty or more than one terminal. Because the stop key sends the
 prompt, a single short tap of the microphone key sends after 350 ms.
+
+## Run with a physical keypad (Linux)
+
+The keypad's device node is `root`-only by default. Install the udev
+rule one time:
+
+```sh
+sudo install -m 0644 udev/70-glancepad.rules /etc/udev/rules.d/
+sudo udevadm control --reload
+sudo udevadm trigger --subsystem-match=hidraw
+```
+
+`getfacl /dev/hidraw*` then shows your user on the keypad's nodes.
+Unplug the keypad and plug it in again if it does not.
+
+```sh
+pnpm keypad         # the simulator page, and the keypad beside it
+pnpm keypad:probe   # prints what the keypad sends; see the script
+```
+
+`pnpm keypad` is `pnpm sim` with `--device hid`. The session feed
+lights the keypad, and the page mirrors what the host sent. The process
+starts without a keypad and looks for one each second. After an unplug
+and a replug it sends the lighting again. The keypad can take some
+seconds to appear; one plug-in took 40 seconds.
+
+glancepad sends lighting requests only. It never writes firmware.
 
 ## Optional Claude Code mod
 

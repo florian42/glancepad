@@ -14,6 +14,8 @@ import { join } from "node:path";
 import { WebSocketServer } from "ws";
 import { createHost } from "../device/host.js";
 import { onKeyEvent } from "../device/keyevents.js";
+import { teeTransport } from "../device/tee.js";
+import type { DeviceTransport } from "../device/transport.js";
 import { createAgentTaps, type WindowFocuser } from "../focus/index.js";
 import { parseModEvent, toSessionEvent } from "../mods/index.js";
 import {
@@ -116,6 +118,11 @@ export interface SimulatorServerOptions {
   readonly focuser?: WindowFocuser;
   /** False asks for a double tap. Default is true. */
   readonly singleTapAgentKeys?: boolean;
+  /**
+   * A physical keypad. The host then drives the keypad and the
+   * simulated device together, and the page mirrors the keypad.
+   */
+  readonly hardware?: DeviceTransport;
 }
 
 // A SessionStart command hook reports the process id of its session
@@ -179,7 +186,13 @@ export async function startSimulatorServer(
 ): Promise<SimulatorServer> {
   // The host owns the slot state and the send chain. The panel drives
   // it until the first session event. After that, sessions win.
-  const host = createHost(device, options);
+  // Subscribe to `transport` for key events, not to `device`: in
+  // hardware mode only `transport` carries the keypad's reports.
+  const transport: DeviceTransport =
+    options.hardware === undefined
+      ? device
+      : teeTransport(options.hardware, device);
+  const host = createHost(transport, options);
   const frameLog: FrameLogEntry[] = [];
   let sessions: Sessions = emptySessions;
   let source: FeedState["source"] = "panel";
@@ -236,7 +249,7 @@ export async function startSimulatorServer(
     tap: { singleTap: options.singleTapAgentKeys ?? true },
     ...(options.focuser === undefined ? {} : { focuser: options.focuser }),
   });
-  const stopKeys = onKeyEvent(device, ({ key, act }) => {
+  const stopKeys = onKeyEvent(transport, ({ key, act }) => {
     void taps.key(key, act);
   });
 
@@ -258,7 +271,7 @@ export async function startSimulatorServer(
   });
 
   // Push-to-talk listens on the transport, beside the host.
-  const talk = attachPushToTalk(device, {
+  const talk = attachPushToTalk(transport, {
     runAction: createTalkCommandRunner(
       options.talkCommands ?? talkCommandsFromEnv(process.env),
     ),

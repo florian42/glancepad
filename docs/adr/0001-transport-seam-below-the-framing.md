@@ -4,7 +4,8 @@ We must develop without a Codex Micro, so a fake transport stands in for
 the device. We put that seam **below** the framing: the transport deals in
 already-framed 64-byte reports, not in JSON-RPC strings. Our real framing,
 fragmentation, and reassembly code therefore runs in simulator mode and in
-hardware mode alike, and only the `node-hid` handle differs.
+hardware mode alike, and only the device handle differs. (ADR-0003
+later chose `/dev/hidraw` file I/O for that handle, not `node-hid`.)
 
 ## Considered options
 

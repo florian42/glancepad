@@ -11,6 +11,7 @@ import {
   deriveThreadsLighting,
   encodeFrames,
   encodeRequest,
+  INCOMPLETE_MESSAGE_TIMEOUT_MS,
   METHOD_LIGHTING_CONFIG,
   METHOD_THREADS_LIGHTING,
   nextRequestId,
@@ -62,6 +63,12 @@ export interface HostOptions {
   readonly selectionLightingMs?: number;
   /** Gap between reports. Tests pass 0. Default is SEND_COOLDOWN_MS. */
   readonly sendCooldownMs?: number;
+  /**
+   * Silence after a send that failed mid-message, before the next
+   * send. Tests pass 0. Default is the keypad's timeout for an
+   * incomplete message, plus a margin.
+   */
+  readonly resyncQuietMs?: number;
 }
 
 export function createHost(
@@ -80,6 +87,9 @@ export function createHost(
   const selectionLightingMs =
     options.selectionLightingMs ?? SELECTION_LIGHTING_MS;
   const sendCooldownMs = options.sendCooldownMs ?? SEND_COOLDOWN_MS;
+  const resyncQuietMs =
+    options.resyncQuietMs ?? INCOMPLETE_MESSAGE_TIMEOUT_MS + 500;
+  let quietUntilMs = 0;
   let requestId = 0;
   const driverSubscribers = new Set<(driver: DriverState) => void>();
 
@@ -104,25 +114,52 @@ export function createHost(
       await new Promise((resolve) => setTimeout(resolve, remain));
     }
   };
-  const sendRpc = (method: string, params: unknown): Promise<void> => {
-    sendChain = sendChain
-      .then(async () => {
+  // Resolves to false when the message did not arrive whole.
+  const sendRpc = (method: string, params: unknown): Promise<boolean> => {
+    const result = sendChain.then(async () => {
+      let reportsSent = 0;
+      try {
+        // Resync. After a partial message, the keypad needs silence
+        // until it drops the part. A message that arrives earlier
+        // joins the part, and the keypad loses both.
+        const quietMs = quietUntilMs - Date.now();
+        if (quietMs > 0) {
+          await new Promise((resolve) => setTimeout(resolve, quietMs));
+        }
         const text = encodeRequest(requestId, method, params);
         requestId = nextRequestId(requestId);
         for (const report of encodeFrames(CHANNEL_RPC, text)) {
           await paceSend();
           await transport.send(report);
           lastSendMs = Date.now();
+          reportsSent++;
         }
-      })
-      // A failed send must not jam the chain, and callers discard the
-      // returned promise — report here and keep the chain settled. A
-      // failure mid-message still leaves a partial fragment in the
-      // device-side accumulator; a real transport owes a resync there.
-      .catch((error) => {
-        console.error("lighting push failed:", error);
-      });
-    return sendChain;
+        return true;
+      } catch (error) {
+        // An absent keypad took nothing. In each other case a part of
+        // the message can be on the keypad.
+        const tookNothing =
+          reportsSent === 0 &&
+          error instanceof Error &&
+          error.message === "DEVICE_DISCONNECTED";
+        if (!tookNothing) quietUntilMs = Date.now() + resyncQuietMs;
+        // A failed send must not jam the chain, and callers discard
+        // the returned promise. The device state is now unknown: the
+        // message did not arrive, and a part of it can sit in the
+        // device-side accumulator. Forget what the device shows, so
+        // the next push sends both lighting calls in full.
+        lastThreads = undefined;
+        lastConfig = undefined;
+        // An absent keypad is a normal state. The transport reports
+        // the loss itself.
+        if (transport.connected) {
+          console.error("lighting push failed:", error);
+        }
+        return false;
+      }
+    });
+    sendChain = result.then(() => undefined);
+    return result;
   };
 
   const threadsParams = () => deriveThreadsLighting(slots, brightness);
@@ -132,8 +169,10 @@ export function createHost(
   // Each lighting call is compared on its own. An unchanged call sends
   // no frames. Request ids stay out of the comparison, so a repeat of
   // the same slots does not count as a new frame.
-  let lastThreads = JSON.stringify(threadsParams());
-  let lastConfig = JSON.stringify(configParams());
+  // `undefined` means the device state is unknown, so the next push
+  // sends that call.
+  let lastThreads: string | undefined = JSON.stringify(threadsParams());
+  let lastConfig: string | undefined = JSON.stringify(configParams());
 
   const pushThreads = () => sendRpc(METHOD_THREADS_LIGHTING, threadsParams());
   const pushConfig = () => sendRpc(METHOD_LIGHTING_CONFIG, configParams());
@@ -143,7 +182,9 @@ export function createHost(
     const configText = JSON.stringify(configParams());
     if (threadsText !== lastThreads) {
       lastThreads = threadsText;
-      await pushThreads();
+      // A message after a partial one cannot parse on the device.
+      // Stop here; the next push starts again from both calls.
+      if (!(await pushThreads())) return;
     }
     if (configText !== lastConfig) {
       lastConfig = configText;
@@ -166,6 +207,15 @@ export function createHost(
     emitDriver();
     await pushLighting();
   };
+
+  // What a device shows when it connects is unknown: another host
+  // can have driven it, or it lost power. Send both lighting calls in
+  // full, from a message boundary.
+  const offConnect = transport.onConnect(() => {
+    lastThreads = undefined;
+    lastConfig = undefined;
+    void pushLighting();
+  });
 
   return {
     get driver() {
@@ -209,6 +259,7 @@ export function createHost(
       return () => driverSubscribers.delete(cb);
     },
     close: () => {
+      offConnect();
       clearTimeout(selectionTimer);
     },
   };

@@ -9,6 +9,8 @@
   "packageManager": "pnpm@11.20.0",
   "scripts": {
     "sim": "tsx src/ui/main.ts",
+    "keypad": "tsx src/ui/main.ts --device hid",
+    "keypad:probe": "tsx scripts/keypad-probe.ts",
     "sim:state": "tsx src/ui/statecli.ts",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",

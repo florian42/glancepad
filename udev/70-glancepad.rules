@@ -1,0 +1,4 @@
+# glancepad: lets the logged-in user open the Codex Micro keypad
+# without root. The number must stay below 73, because
+# 73-seat-late.rules applies the uaccess tag.
+KERNEL=="hidraw*", SUBSYSTEM=="hidraw", ATTRS{idVendor}=="303a", ATTRS{idProduct}=="8360", TAG+="uaccess"

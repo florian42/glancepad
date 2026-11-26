@@ -19,6 +19,10 @@ export const RPC_ID_LIMIT = 999;
 // The vendor host waits this long between queued sends.
 export const SEND_COOLDOWN_MS = 50;
 
+// The keypad drops a message that stays incomplete this long, and
+// answers with an error. Measured on a keypad: docs/protocol.md §11.
+export const INCOMPLETE_MESSAGE_TIMEOUT_MS = 5000;
+
 export const NOTIFY_KEYS = "v.oai.hid";
 export const NOTIFY_JOYSTICK = "v.oai.rad";
 

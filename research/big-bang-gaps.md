@@ -8,23 +8,39 @@ The interactive section was updated on 2026-11-26.
 
 ## Physical keypad
 
-`SimulatedDevice` is the only `DeviceTransport`. The USB ids below come
-from `research/virtual-device-options.md`. No code handles unplug or
-replug. The repository has no udev rule. Issue 9 names
-`src/ui/server.ts` for a partial send. The comment is now in
-`src/device/host.ts`.
+*Answered 2026-11-26 with one keypad on Linux. The evidence is in
+`docs/protocol.md` §11.*
 
-- **Verified.** Confirm that the six agent keys match the simulator
-  colors.
-- **Verified.** Open the keypad at vendor id `0x303A`, product id
-  `0x8360`, and usage page `0xFF00`.
-- **Verified.** Unplug the keypad and plug it back in.
-- **Uncertain.** See whether the next lighting message works after a
-  send fails mid-message.
-- **Verified.** Confirm that Linux opens the keypad without root.
-- **Uncertain.** The breath timing on the keypad is unread.
-- **Uncertain.** The snake shape on the ring is unread.
-- **Uncertain.** The LED count on the keypad is unread.
+`HidTransport` (`src/device/hidtransport.ts`) now drives the keypad.
+`pnpm keypad` starts hardware mode. `udev/70-glancepad.rules` is the
+udev rule.
+
+- **Verified by a person.** The six agent keys showed the colors that
+  the host sent, after a second look. The first answer was "wrong or
+  missing colors" with no detail.
+- **Verified.** The transport opened the keypad at vendor id `0x303A`,
+  product id `0x8360`, and usage page `0xFF00`.
+- **Verified.** After an unplug and a replug, the transport opened the
+  keypad again and sent the lighting again. The keypad answered `ok`,
+  and a person saw the scene return.
+- **Verified.** Linux opened the keypad without root, with the udev
+  rule installed.
+- **Verified.** The keypad answers `{"result":{"ok":1},"id":N,"method":M}`
+  to a lighting request.
+- **Verified.** After a message that stops mid-way, the keypad drops
+  the part after 5.0 seconds of silence. The next message then works.
+  A message that arrives earlier is lost.
+- **Uncertain.** No real write has failed mid-message. The host rule
+  (5.5 seconds of silence, then both lighting calls) rests on the
+  measurement above and on tests with a fake keypad.
+- **Uncertain.** What the keypad shows after a replug with no host is
+  unread. One report of a person and our log disagree.
+- **Uncertain.** The breath period is not measured. A person saw one
+  breath take 2 seconds or more at speed 0.4.
+- **Uncertain.** The snake shape is not described. A person saw a blue
+  segment move around the ring.
+- **Uncertain.** The LED count is unread. The keypad answers `ok` to
+  each slot id, so no reply tells the count.
 
 ## Interactive terminal
 

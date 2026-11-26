@@ -111,6 +111,11 @@ export class SimulatedDevice implements DeviceTransport {
     return () => this.#reportSubscribers.delete(cb);
   }
 
+  /** The simulated device never loses its connection. */
+  onConnect(_cb: () => void): () => void {
+    return () => {};
+  }
+
   async close(): Promise<void> {
     this.#connected = false;
   }
