@@ -4,6 +4,7 @@
 
 Verified means the source states the claim. Uncertain means no source
 states the live result. Issues 5, 6, and 10 are outside this list.
+The interactive section was updated on 2026-11-26.
 
 ## Physical keypad
 
@@ -27,38 +28,32 @@ replug. The repository has no udev rule. Issue 9 names
 
 ## Interactive terminal
 
-Issue 7 needs a person at a terminal. The first session loads the
-capture settings, the capture probe, and the glancepad mod:
+**Closed on 2026-11-26.** Issue 7 did not need a person. An agent drove
+an interactive `claude` 2.1.332 through a pseudo-terminal, with the
+capture settings and the capture probe loaded. The observed rows are in
+`research/claude-code-session-signals.md` and
+`research/claude-code-mods-as-state-source.md`, each under "Observed in
+an interactive session".
 
-```sh
-claude --settings scripts/capture-hooks.settings.json --plugin-dir scripts/mod-probe --plugin-dir scripts/glancepad-mod
-```
-
-The hook log is `/tmp/glancepad-hooks.jsonl`. The mod log is
-`/tmp/glancepad-mod-events.jsonl`. Remove prompt text before you store
-either log. The session reducer already has an `awaiting-response`
-event.
-
-- **Uncertain.** Claude Code was not installed in the mod run, so
-  `claude --plugin-dir scripts/glancepad-mod` is not yet observed.
-- **Verified.** Press Esc while a turn works, and keep the mod log.
-- **Verified.** A headless SIGINT ends in `turn.complete` with reason
-  `aborted` and no `Stop`
-  (`research/claude-code-mods-as-state-source.md`).
-- **Uncertain.** No interactive log shows whether Esc does the same.
-- **Verified.** Approve one `Bash` command and record the amber time.
-- **Uncertain.** No measurement shows how long amber lasts after
-  approval.
-- **Verified.** A headless refusal ends in `turn.complete` with reason
-  `answer` (`research/claude-code-mods-as-state-source.md`).
-- **Verified.** Deny one `Bash` command in the permission dialog.
-- **Uncertain.** No capture shows the turn end, or the reason, for
-  that denial.
-- **Verified.** Ask for `AskUserQuestion`, then answer the dialog.
-- **Uncertain.** No interactive log shows the events for that question
-  or its answer.
-- **Verified.** In a second session, point one HTTP hook at
-  `http://127.0.0.1:4199/events`.
-- **Uncertain.** No capture shows whether each event then prints a
-  hook error.
-- **Verified.** That result is the open question in issue 6.
+- **Closed.** The first glancepad mod did not load on 2.1.332, because
+  it imported a file outside its folder. The fixed mod loads.
+- **Closed.** Esc ends the turn with `turn.complete` `aborted` and no
+  `Stop`, the same as SIGINT.
+- **Closed.** Amber lasted 6.2 seconds after the approval of a 6 second
+  `Bash` command. It ends at `PostToolUse`.
+- **Closed.** A denial in the dialog ends the turn with `turn.complete`
+  `answer`, and no hook fires. The mod now reports it.
+- **Closed.** `AskUserQuestion` fires `PreToolUse`, then
+  `PermissionRequest`, and `PostToolUse` at the answer.
+- **Closed.** `/exit` fires `SessionEnd` with reason
+  `prompt_input_exit`.
+- **Closed.** An HTTP hook aimed at closed port 4199 prints a failure
+  notice for each event. The settings snippet now uses command hooks.
+- **Closed.** Liveness works: the key went off 15.4 seconds after
+  `kill -9`.
+- **Still open.** Amber after an approval has no early end. No hook and
+  no mod event marks the approval.
+- **Still open.** `StopFailure`, a `refusal` turn, a compact, and a
+  resume are not observed.
+- **Still open.** The mod is not observed in the desktop app or in an
+  IDE extension.

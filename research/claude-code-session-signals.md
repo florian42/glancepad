@@ -2,9 +2,10 @@
 
 *Researched 2026-09-30 against Claude Code 2.1.285. Source: the hooks
 reference, <https://code.claude.com/docs/en/hooks.md>, fetched the same
-day. Line numbers below refer to that fetch and will drift. No live
-session was captured yet. Every row is documented behavior, not observed
-behavior, until the probe in "Capture real payloads" runs.*
+day. Line numbers below refer to that fetch and will drift. The event
+table is documented behavior. An interactive session on Claude Code
+2.1.332 was captured on 2026-11-26. See "Observed in an interactive
+session" for what that capture confirms and what it changes.*
 
 Roadmap priority 1 needs one slot status per Claude Code session (see
 [codex-micro-state-machines.md](codex-micro-state-machines.md) §3). Claude
@@ -51,14 +52,20 @@ every time.
 1. **Esc leaves a session blue.** `Stop` "does not run if the stoppage
    occurred due to a user interrupt" (hooks.md:2533). No other event marks
    an interrupt. The session stays `working` until the next prompt.
+   **Observed, and open for hooks.** No hook fired after Esc. The
+   optional mod closes this gap.
 2. **An approved tool stays amber until it finishes.** No event fires when
    the user answers a permission prompt. After an approval, the next
    event is `PostToolUse`, which fires only when the tool completes. A
    long `Bash` command therefore shows amber for its whole run.
+   **Observed, and open.** Amber lasted 6.2 seconds after the approval
+   of a 6 second command. No source closes this gap.
 3. **A denial may leave the session amber.** `PermissionDenied` fires in
    auto mode only. It "doesn't run when you manually deny a permission
    dialog". If a manual denial ends the turn the same way Esc does, no
-   event follows at all. This is unverified.
+   event follows at all. **Observed, and open for hooks.** A manual
+   denial ends the turn, and no hook fires after `PermissionRequest`.
+   The optional mod closes this gap.
 4. **A question in plain text shows green.** `Stop` carries
    `last_assistant_message`, the text of the final reply. No field says
    whether Claude asked a question or finished. Parsing the text for a
@@ -83,22 +90,77 @@ then decide.
 A Claude Code mod sees interrupts directly. See
 [claude-code-mods-as-state-source.md](claude-code-mods-as-state-source.md).
 
-## Deliver events with an HTTP hook
+## Deliver events with a command hook
 
-A `type: "http"` hook posts the event JSON to a URL, so glancepad needs no
-hook script. A connection failure is a "non-blocking error, execution
-continues" (hooks.md:904). A synchronous hook holds Claude until the POST
-returns, so events should arrive in firing order. The state machine
-depends on that order. This is an inference, not a documented guarantee.
+`scripts/glancepad.settings.json` registers one command hook per event.
+The command pipes the event JSON to `curl`, which posts it to
+`http://127.0.0.1:4180/events`. The command ends in `|| true`, and
+`curl` has a 2 second limit.
 
-The alternative is a command hook with `async: true`. It never blocks
-Claude, but each event starts a separate process, and nothing guarantees
-that those processes deliver in order.
+A `type: "http"` hook needs no process, but it is not usable. The docs
+call a connection failure a "non-blocking error, execution continues"
+(hooks.md:904). That is true, and incomplete. **Observed on 2.1.332:
+each event prints a failure notice in the transcript when nothing
+listens on the port.** The capture aimed the hooks at closed port 4199:
 
-Two facts are still open. First, does a connection failure print a
-`hook error` notice in the transcript when glancepad is not running? A
-notice on every event would make the HTTP hook unusable. Second, how much
-latency does a synchronous local POST add to each tool call?
+| Event | Notice in the transcript |
+|---|---|
+| `UserPromptSubmit` | `UserPromptSubmit hook failed`, then `connect ECONNREFUSED 127.0.0.1:4199` |
+| `PreToolUse`, `PostToolUse` | `PreToolUse:Bash hook failed` and `PostToolUse:Bash hook failed`, each with the same second line |
+| `Stop` | `Ran 1 stop hook`, `Stop hook failed`, and a `stop hook problem` line above the prompt |
+| `SessionEnd` | `SessionEnd hook [http://127.0.0.1:4199/events] failed: connect ECONNREFUSED 127.0.0.1:4199`, printed after exit |
+
+The same session with the command hook, and nothing on port 4180,
+printed no notice (observed, one prompt, one approved `Bash` call, and
+`/exit`).
+
+The hook is synchronous, not `async: true`. A synchronous hook holds
+Claude until the command returns, so events arrive in firing order.
+That order is an inference, not a documented guarantee. The cost is one
+`curl` process per event. The command returns in about 10 ms when the
+port is closed (measured with the shell, outside Claude Code). The
+latency inside a tool call is not measured.
+
+## Observed in an interactive session
+
+One session ran on 2026-11-26 with Claude Code 2.1.332, Haiku 4.5, and
+permission mode `default`. An agent drove it through a pseudo-terminal
+and recorded the time of each key. The session loaded
+`scripts/capture-hooks.settings.json` and `scripts/mod-probe`. The mod
+side of each row is in
+[claude-code-mods-as-state-source.md](claude-code-mods-as-state-source.md).
+
+| Action | Hook events, in order | Status that hooks alone give |
+|---|---|---|
+| Plain prompt | `UserPromptSubmit`, `Stop` | `unread`. Correct. |
+| Esc while the answer streams | `UserPromptSubmit`, then nothing | `working` until the next prompt. Gap 1. |
+| `Bash`, approved in the dialog | `UserPromptSubmit`, `PreToolUse`, `PermissionRequest` (+0.1 s), `Notification` `permission_prompt` (+6.0 s), `PostToolUse`, `Stop` | Amber from the request to `PostToolUse`. Gap 2. |
+| `Bash`, denied with "No" | `UserPromptSubmit`, `PreToolUse`, `PermissionRequest`, then nothing | Amber until the next prompt. Gap 3. |
+| `Bash`, Esc at the dialog | The same as a denial | Amber until the next prompt. Gap 3. |
+| `Bash`, approved, then Esc while it ran | `UserPromptSubmit`, `PreToolUse`, `PermissionRequest`, then nothing | Amber until the next prompt. Gaps 1 and 2 together. |
+| `AskUserQuestion`, answered | `UserPromptSubmit`, `PreToolUse`, `PermissionRequest` with `tool_name` `AskUserQuestion` (+0.1 s), `Notification` (+6.0 s), `PostToolUse` at the answer, `Stop` | Amber, then `working`, then `unread`. Correct. |
+| `/exit` | `SessionEnd` with `reason` `prompt_input_exit` | `off`. Correct. |
+
+What this settles:
+
+- **Gap 2, measured.** The approved command was `sleep 6 && touch
+  approved.txt`. `PermissionRequest` fired at 0.0 s. The approval key
+  went in at 8.4 s. `PostToolUse` fired at 14.5 s. Amber therefore
+  lasted 6.2 seconds after the approval, which is the run time of the
+  command. No event marks the approval.
+- **A denial sends no `PostToolUseFailure`, no `PermissionDenied`, and
+  no `Stop`.** The screen shows "Interrupted". With hooks alone, the key
+  stays amber.
+- **`AskUserQuestion` fires `PermissionRequest` too.** The session goes
+  `awaiting-response`, then `awaiting-approval`. Both are amber, so
+  the order does not matter.
+- **A `SubagentStop` can arrive after `Stop`.** It came 3 to 6 seconds
+  after two of the `Stop` events, with an empty `agent_type` and no
+  `SubagentStart`. The cause is not known. The reducer ignores activity
+  outside a turn, so the key stays green.
+
+Not observed: `StopFailure`, `PermissionDenied`, a compact, a resume,
+and a real subagent.
 
 ## Capture real payloads
 
@@ -112,7 +174,10 @@ claude --settings scripts/capture-hooks.settings.json
 jq -c '[.at, .payload.hook_event_name, .payload.tool_name // .payload.notification_type // .payload.source // .payload.reason // ""]' /tmp/glancepad-hooks.jsonl
 ```
 
-Run this script in one interactive session. It settles gaps 1, 2, and 3:
+The hook command reads `${CLAUDE_PROJECT_DIR}`, so start the session in
+this repository, or replace that variable with an absolute path.
+
+This script ran on 2026-11-26. It settles gaps 1, 2, and 3:
 
 1. Send a prompt and let it finish. Expect `UserPromptSubmit`, then `Stop`.
 2. Send a prompt, then press Esc while it works.

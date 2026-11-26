@@ -8,7 +8,9 @@ declaration file that Claude Code 2.1.287 writes for mod authors
 `plugin-authoring` skill). The declaration file is the primary source.
 Its header says "EARLY ACCESS: this surface may change between releases
 without notice." Line numbers are omitted because the file is regenerated
-per build. Search it for the quoted name.*
+per build. Search it for the quoted name. An interactive capture on
+Claude Code 2.1.332 followed on 2026-11-26. See "Observed in an
+interactive session".*
 
 [claude-code-session-signals.md](claude-code-session-signals.md) maps
 the settings-hook events to slot statuses and lists six gaps. This note
@@ -31,12 +33,12 @@ settings hook can do here, plus the events below.
 
 | Gap in the signals note | Mod event or API | Status |
 |---|---|---|
-| 1. Esc leaves a session blue | `turn.complete` carries `reason: 'answer' \| 'aborted' \| 'refusal' \| 'error'` and `isAborted` (search `TurnCompleteReason`) | **Closed.** Observed for SIGINT (below). Esc not yet observed. |
+| 1. Esc leaves a session blue | `turn.complete` carries `reason: 'answer' \| 'aborted' \| 'refusal' \| 'error'` and `isAborted` (search `TurnCompleteReason`) | **Closed.** Observed for SIGINT and for Esc (below). |
 | 2. An approved tool stays amber | `tool.check` resolves the verdict `allow`, `ask`, or `deny` before the dialog. The dialog "is drawn by the engine alone" (search `RenderComponent`). No event marks the user's answer. | **Open.** A verdict of `ask` does not predict amber: in auto mode a classifier settles it with no dialog (observed below). `classic.PermissionRequest` is the amber signal. The end of amber is still `tool.call` returning. |
-| 3. A manual denial may stay amber | If the denial ends the turn, `turn.complete` fires with some `reason`. Which one is not documented. | **Probably closed.** Needs a capture. |
+| 3. A manual denial may stay amber | If the denial ends the turn, `turn.complete` fires with some `reason`. Which one is not documented. | **Closed, but not by `reason`.** A denial ends with `reason: 'answer'`, the same as a normal answer. The difference is that no `classic.Stop` fires in that turn (below). |
 | 4. A plain-text question shows green | `turn.complete` carries `answer`, the same text that `Stop` gives. | **Open.** Same as hooks. |
 | 5. Nothing marks a session as read | `ui.focus` exists, but it moves focus between mod-drawn elements. It is not terminal focus. | **Open.** |
-| 6. A crashed session never ends | `$.clock.every` runs a timer for the life of the module. A heartbeat over `$.http.fetch` lets glancepad expire a silent session. | **Closable** with a heartbeat. A settings hook cannot do this. |
+| 6. A crashed session never ends | `$.clock.every` runs a timer for the life of the module. A heartbeat over `$.http.fetch` lets glancepad expire a silent session. | **Closed.** After `kill -9`, the key went off 15.4 seconds later (below). |
 
 ## Delivery from a mod
 
@@ -126,3 +128,59 @@ hot reloading on (180 records, 2026-10-02):
 Not explained: the SIGINT run has no `tool.check` record, although the
 allow rule matched. The probe writes its whole log on each event, so a
 lost write is possible. Treat the absence as unconfirmed.
+
+## Observed in an interactive session
+
+One session ran on 2026-11-26 with Claude Code 2.1.332, Haiku 4.5, and
+permission mode `default`, with the probe and the capture hooks loaded.
+An agent drove it through a pseudo-terminal. The hook side of each row
+is in [claude-code-session-signals.md](claude-code-session-signals.md).
+
+| Action | Mod events, in order |
+|---|---|
+| Plain prompt | `turn.start`, `classic.Stop`, `turn.complete` (`answer`) |
+| Esc while the answer streams | `turn.start`, `turn.complete` (`aborted`, `isAborted: true`), 0.11 s after the key. **No `classic.Stop`.** |
+| `Bash`, approved in the dialog | `turn.start`, `tool.call:before`, `tool.check` (`ask`), `classic.PermissionRequest`, `classic.Notification`, `tool.call:after`, `classic.Stop`, `turn.complete` (`answer`) |
+| `Bash`, denied with "No" | `turn.start`, `tool.call:before`, `tool.check` (`ask`), `classic.PermissionRequest`, `tool.call:after` (`denied`), `turn.complete` (`answer`, `isAborted: false`). **No `classic.Stop`.** |
+| `Bash`, Esc at the dialog | The same as a denial |
+| `Bash`, approved, then Esc while it ran | `turn.start`, `tool.call:before`, `tool.check` (`ask`), `classic.PermissionRequest`, `turn.complete` (`aborted`), then `tool.call:after` (`denied`). **No `classic.Stop`.** |
+| `/exit` | `session.end` with `reason` `prompt_input_exit` |
+
+What this settles:
+
+- **Esc is `aborted`, the same as SIGINT.** Gap 1 is closed for a mod.
+- **A denial is not `aborted`.** It ends with `reason: 'answer'`. The
+  one difference from a normal answer is the missing `classic.Stop`. So
+  the glancepad mod posts `interrupted` in two cases: the reason is
+  `aborted`, or the reason is `answer` and no `classic.Stop` fired in
+  that turn. The key then shows `idle`, because the user is at the
+  terminal.
+- **`turn.complete` can come before `tool.call:after`.** The Esc run
+  shows it. Do not read `tool.call:after` as activity inside a turn.
+
+Three loader rules were learned the hard way on 2.1.332. The first two
+came as load errors in the transcript:
+
+- A hooks module can import only from the plugin's own folder. The
+  first glancepad mod imported `src/mods/report.ts`, and it did not
+  load. Its pure functions are now in
+  `scripts/glancepad-mod/hooks/report.ts`.
+- Each `on(event, hook)` call needs an inline function, or a function
+  declared at the top of the file. A function declared inside
+  `register` and shared by two calls did not load.
+- `claude -p --debug` printed nothing about the mod in either case.
+  Check the load in an interactive session, or check its effect.
+
+The glancepad mod then ran against `pnpm sim` on port 4180, together
+with `scripts/glancepad.settings.json`. Times are from a 0.1 second
+poll of `/state`:
+
+| Action | Key 1 |
+|---|---|
+| Esc while the answer streamed | `working` to `idle`, 0.19 s after the key |
+| `Bash` denied with "No" | `awaiting-approval` to `idle`, 0.07 s after the key |
+| `kill -9` on the `claude` process, key at `unread` | `off` 15.4 s after the kill, with no `SessionEnd` |
+| Simulator not running | No notice in the transcript |
+
+Not observed: a `refusal` turn, an `error` turn, a mod inside the
+desktop app or an IDE extension, and a session with hot reload.

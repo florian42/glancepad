@@ -99,12 +99,13 @@ prompt, a single short tap of the microphone key sends after 350 ms.
 
 ## Optional Claude Code mod
 
-The mod targets Claude Code 2.1.287. That build's mod API is early
+The mod was last checked on Claude Code 2.1.332. The mod API is early
 access and can change without notice.
 
 The mod posts two events to `http://127.0.0.1:4180/events`. It posts
-`turn-ended` with outcome `interrupted`. It posts a heartbeat every
-5 seconds. It does not post the events a settings hook already sends.
+`turn-ended` with outcome `interrupted` when you press Esc or deny a
+permission dialog. It posts a heartbeat every 5 seconds. It does not
+post the events a settings hook already sends.
 
 A failed post stays silent. glancepad can be down.
 
@@ -118,6 +119,7 @@ A watched session leaves the keys when no event and no heartbeat
 arrive for 15 seconds. A hooks-only session stays until it ends.
 Settings hooks post to the same `/events` path. The snippet is
 [`scripts/glancepad.settings.json`](scripts/glancepad.settings.json).
+Its hooks call `curl`, and they stay silent when glancepad is down.
 An unknown body is ignored. The server does not log the body.
 
 ## Bring a session to the front
