@@ -3,3 +3,4 @@
 
 export * from "./hooks.js";
 export * from "./sessions.js";
+export * from "./tapmachine.js";

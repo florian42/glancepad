@@ -46,6 +46,17 @@ module.exports = {
       from: { path: "^src/device" },
       to: { path: "^src/(simulator|ui)" },
     },
+    {
+      name: "focus-below-the-server",
+      comment:
+        "src/focus (tap handling and window focus) may import only src/focus, src/sessions, src/protocol, and node builtins. It must work with any key source (issue #12).",
+      severity: "error",
+      from: { path: "^src/focus" },
+      to: {
+        pathNot: "^(src/(focus|sessions|protocol)|node:)",
+        dependencyTypesNot: ["core"],
+      },
+    },
   ],
   options: {
     doNotFollow: { path: "node_modules" },

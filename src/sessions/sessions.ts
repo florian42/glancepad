@@ -34,7 +34,9 @@ export type SessionEvent =
     }
   | { kind: "ended"; sessionId: string }
   /** Mod liveness. Hooks do not send this. Refreshes the session. */
-  | { kind: "heartbeat"; sessionId: string };
+  | { kind: "heartbeat"; sessionId: string }
+  /** The user tapped the agent key of this session. */
+  | { kind: "read"; sessionId: string };
 
 export interface Session {
   readonly status: SlotStatus;
@@ -95,6 +97,14 @@ export function reduceSessions(
       watched: true,
     });
   }
+  if (event.kind === "read") {
+    // The activity time stays, so a tap does not reorder the keys.
+    if (current?.status !== "unread") return sessions;
+    return new Map(sessions).set(event.sessionId, {
+      ...current,
+      status: "idle",
+    });
+  }
   const status = nextStatus(current?.status, event);
   if (status === undefined) return sessions;
   return new Map(sessions).set(event.sessionId, {
@@ -127,7 +137,10 @@ export function expireSilentSessions(
 /** Returns the new status, or `undefined` to ignore the event. */
 function nextStatus(
   current: SlotStatus | undefined,
-  event: Exclude<SessionEvent, { kind: "ended" } | { kind: "heartbeat" }>,
+  event: Exclude<
+    SessionEvent,
+    { kind: "ended" } | { kind: "heartbeat" } | { kind: "read" }
+  >,
 ): SlotStatus | undefined {
   switch (event.kind) {
     case "started":

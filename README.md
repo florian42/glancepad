@@ -120,6 +120,34 @@ Settings hooks post to the same `/events` path. The snippet is
 [`scripts/glancepad.settings.json`](scripts/glancepad.settings.json).
 An unknown body is ignored. The server does not log the body.
 
+## Bring a session to the front
+
+A press on an agent key brings the terminal window of that session to
+the front. It also marks the session as read: an `unread` key goes to
+`idle`. A press on an empty key does nothing.
+
+Setup:
+
+1. Use Hyprland. No other window system has an implementation yet.
+2. Load [`scripts/glancepad.settings.json`](scripts/glancepad.settings.json)
+   in each session. Its `SessionStart` hook must stay a command hook. It
+   sends the process id of the session in the `x-glancepad-pid` header.
+   It sends no prompt text.
+3. Start `pnpm sim`. It finds `hyprctl` on the `PATH`.
+
+```sh
+claude --settings scripts/glancepad.settings.json
+```
+
+glancepad finds the window from the process id at the time of the
+press. A session that sent no process id is marked as read, and its
+window stays where it is. A failed focus writes one line to the log.
+
+The focus goes to the terminal window. It does not select a tab or a
+split. One terminal process with two windows is not resolved. tmux is
+not supported. See
+[`research/session-window-handle.md`](research/session-window-handle.md).
+
 ## What is here
 
 | Path | Contents |

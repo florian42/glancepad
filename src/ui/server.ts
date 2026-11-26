@@ -13,6 +13,8 @@ import { createServer, type IncomingMessage } from "node:http";
 import { join } from "node:path";
 import { WebSocketServer } from "ws";
 import { createHost } from "../device/host.js";
+import { onKeyEvent } from "../device/keyevents.js";
+import { createAgentTaps, type WindowFocuser } from "../focus/index.js";
 import { parseModEvent, toSessionEvent } from "../mods/index.js";
 import {
   AGENT_KEYS,
@@ -110,7 +112,15 @@ export interface SimulatorServerOptions {
   readonly sendCooldownMs?: number;
   /** Push-to-talk commands. Default: the GLANCEPAD_TALK_* variables. */
   readonly talkCommands?: TalkCommands;
+  /** Brings a session window to the front on a tap. Default: none. */
+  readonly focuser?: WindowFocuser;
+  /** False asks for a double tap. Default is true. */
+  readonly singleTapAgentKeys?: boolean;
 }
+
+// A SessionStart command hook reports the process id of its session
+// in this header. See research/session-window-handle.md.
+const PROCESS_HEADER = "x-glancepad-pid";
 
 async function readBody(req: IncomingMessage): Promise<string> {
   const chunks: Buffer[] = [];
@@ -206,6 +216,7 @@ export async function startSimulatorServer(
       const stamped = nowMs > lastNowMs ? nowMs : lastNowMs + 1;
       lastNowMs = stamped;
       const next = reduceSessions(sessions, event, stamped);
+      if (event.kind === "ended") taps.forget(event.sessionId);
       if (next === sessions) return;
       sessions = next;
       await publishSessions();
@@ -216,6 +227,18 @@ export async function startSimulatorServer(
     );
     return run;
   };
+
+  // A press on an agent key marks its session as read and brings the
+  // session window to the front (issue 12).
+  const taps = createAgentTaps({
+    sessionIds: () => feedState().sessionIds,
+    markRead: (sessionId) => applySession({ kind: "read", sessionId }),
+    tap: { singleTap: options.singleTapAgentKeys ?? true },
+    ...(options.focuser === undefined ? {} : { focuser: options.focuser }),
+  });
+  const stopKeys = onKeyEvent(device, ({ key, act }) => {
+    void taps.key(key, act);
+  });
 
   const wss = new WebSocketServer({ noServer: true });
 
@@ -326,6 +349,10 @@ export async function startSimulatorServer(
         : sessionEventFromHook(payload);
       try {
         if (sessionEvent) {
+          const pid = Number(req.headers[PROCESS_HEADER]);
+          if (Number.isInteger(pid) && pid > 1) {
+            taps.setProcess(sessionEvent.sessionId, pid);
+          }
           source = "sessions";
           await applySession(sessionEvent);
           broadcastFeed();
@@ -426,6 +453,7 @@ export async function startSimulatorServer(
     close: async () => {
       clearInterval(liveness);
       talk.close();
+      stopKeys();
       host.close();
       wss.close();
       for (const client of wss.clients) client.terminate();

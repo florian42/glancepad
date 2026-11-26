@@ -277,6 +277,44 @@ describe("reduceSessions, ordering and duplicate guards", () => {
   });
 });
 
+describe("reduceSessions, the read event from an agent-key tap", () => {
+  const read = (sessionId: string): SessionEvent => ({
+    kind: "read",
+    sessionId,
+  });
+
+  it("turns unread into idle", () => {
+    expect(
+      statuses([prompted("a"), turnEnded("a", "answer"), read("a")]),
+    ).toEqual(["idle", ...off(5)]);
+  });
+
+  it("leaves every other status as it is", () => {
+    expect(statuses([prompted("a"), read("a")])).toEqual([
+      "working",
+      ...off(5),
+    ]);
+    expect(
+      statuses([prompted("a"), turnEnded("a", "error"), read("a")]),
+    ).toEqual(["error", ...off(5)]);
+  });
+
+  it("does not create a session", () => {
+    expect(statuses([read("a")])).toEqual(off(6));
+  });
+
+  it("does not move the session to the first key", () => {
+    expect(
+      statuses([
+        prompted("a"),
+        turnEnded("a", "answer"),
+        prompted("b"),
+        read("a"),
+      ]),
+    ).toEqual(["working", "idle", ...off(4)]);
+  });
+});
+
 describe("expireSilentSessions", () => {
   const heartbeat = (sessionId: string): SessionEvent => ({
     kind: "heartbeat",

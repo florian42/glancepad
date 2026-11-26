@@ -67,7 +67,8 @@ every time.
 5. **Nothing marks a session as read.** ChatGPT clears `unread` when you
    look at the thread. Claude Code sends no focus or view event. Decision
    for now: `unread` stays until the next prompt, the session ends, or
-   the user taps the agent key (roadmap priority 3).
+   the user taps the agent key (roadmap priority 3). The tap is
+   implemented: see [session-window-handle.md](session-window-handle.md).
 6. **A crashed session never sends `SessionEnd`.** Its slot would stay lit
    forever. Liveness needs a check outside the hooks. Candidates are the
    parent process ID of the hook command, and the modification time of

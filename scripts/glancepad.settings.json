@@ -5,7 +5,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "# The /events endpoint has no authentication. The loopback bind is its only guard.\ncurl -sf -X POST -H \"content-type: application/json\" --data-binary @- http://127.0.0.1:4180/events >/dev/null || true"
+            "command": "# The /events endpoint has no authentication. The loopback bind is its only guard.\n# $PPID is the claude process. glancepad finds the terminal window from it.\ncurl -sf -X POST -H \"content-type: application/json\" -H \"x-glancepad-pid: $PPID\" --data-binary @- http://127.0.0.1:4180/events >/dev/null || true"
           }
         ]
       }
