@@ -24,8 +24,11 @@ opened without root, the six agent keys showed the session colors, key
 and encoder events arrived, and the lighting returned after an unplug
 and a replug. [`docs/protocol.md`](docs/protocol.md) §11 records what
 the keypad sent, and what is still unread: the LED count, the exact
-breath period, and the snake shape. macOS and Windows have no hardware
-mode yet ([ADR-0003](docs/adr/0003-hid-access-through-hidraw.md)).
+breath period, and the snake shape.
+
+macOS has a hardware mode that **nobody tested on a Mac**
+([ADR-0004](docs/adr/0004-macos-hid-access-through-node-hid.md)). See
+"macOS". Windows has no hardware mode.
 
 ## Set up for Claude Desktop
 
@@ -212,6 +215,8 @@ prompt, a single short tap of the microphone key sends after 350 ms.
 
 ## Run with a physical keypad (Linux)
 
+For macOS, see "macOS".
+
 The keypad's device node is `root`-only by default. Install the udev
 rule one time:
 
@@ -236,6 +241,70 @@ and a replug it sends the lighting again. The keypad can take some
 seconds to appear; one plug-in took 40 seconds.
 
 glancepad sends lighting requests only. It never writes firmware.
+
+## macOS
+
+**Each step in this section is untested on hardware.** The session
+that wrote the macOS code had no Mac. The Linux tests pass, and the
+keypad library ran on Linux. The evidence, the open points, and a
+checklist with the output to report are in
+[`research/macos-support.md`](research/macos-support.md).
+
+1. *(untested)* Install Node 22 or later and pnpm, then run
+   `pnpm install`. No compiler is necessary: the keypad library
+   `node-hid` contains a binary for macOS.
+2. *(untested)* Install the hooks: `pnpm hooks:install`. Start a new
+   session after that.
+3. *(untested)* Attach the keypad and run `pnpm keypad`. No udev rule
+   and no `sudo` are necessary. We expect no permission dialog,
+   because glancepad opens the vendor interface only, not the keyboard
+   interface. Quit other applications that drive the keypad: two
+   hosts would both set the lighting.
+4. *(untested)* Press an agent key. For a Claude Desktop session,
+   glancepad opens the session link with `open`. For a terminal
+   session, glancepad brings the terminal application to the front.
+   It does not select a window, a tab, or a split, and it does not
+   find a session in tmux.
+5. *(untested)* Set the microphone key. See the Raycast example
+   below.
+
+### Example: Raycast Dictation on the microphone key
+
+This example is **not tested**.
+[Raycast Dictation](https://manual.raycast.com/ai/dictation) starts
+from a hotkey that you set. Its documentation gives no link and no
+command that starts it, so glancepad sends the hotkey.
+
+1. In Raycast, set the hotkey of Dictation to Hyper+D. Hyper is
+   Cmd+Ctrl+Option+Shift. In the Raycast Hyper Key settings, the
+   option "Include Shift" must be on.
+2. Write `~/.config/glancepad/config.json`:
+
+   ```json
+   {
+     "talk": {
+       "start": "osascript -e 'tell application \"System Events\" to key code 2 using {command down, control down, option down, shift down}'",
+       "stop": "osascript -e 'tell application \"System Events\" to key code 2 using {command down, control down, option down, shift down}'"
+     }
+   }
+   ```
+
+   Key code 2 is the D key. Each command sends one tap of the hotkey.
+   The tap at the press starts Dictation, and the tap at the release
+   accepts the text.
+3. Start `pnpm keypad` again and hold the microphone key. macOS asks
+   for two permissions for the terminal application that runs
+   glancepad: **Accessibility** (System Settings → Privacy & Security
+   → Accessibility) and **Automation** for "System Events". Grant
+   both. Raycast itself needs the Microphone and Accessibility
+   permissions.
+
+A single short tap of the microphone key records for 350 ms only. If
+one tap is lost, Dictation and the key disagree: press Esc in Raycast
+to cancel. If Raycast ignores the sent hotkey, use a dictation tool
+with a start command and a stop command. Superwhisper documents
+`open -g superwhisper://record/start` and
+`open -g superwhisper://record/stop`; that is not tested either.
 
 ## Optional Claude Code mod
 
@@ -270,7 +339,8 @@ press on an empty key does nothing.
 
 Setup:
 
-1. Use Hyprland. No other window system has an implementation yet.
+1. Use Hyprland on Linux. macOS has an untested implementation: see
+   "macOS". No other window system has one.
 2. Install the hooks with `pnpm hooks:install`, or load
    [`scripts/glancepad.settings.json`](scripts/glancepad.settings.json)
    in one session with `claude --settings scripts/glancepad.settings.json`.
@@ -314,6 +384,7 @@ and
 | [`research/roadmap.md`](research/roadmap.md) | The goal, and the feature order |
 | [`research/virtual-device-options.md`](research/virtual-device-options.md) | Why we build our own simulator, and the recovered wire protocol |
 | [`research/claude-desktop-sessions.md`](research/claude-desktop-sessions.md) | What a Claude Desktop session sends, and how glancepad opens it |
+| [`research/macos-support.md`](research/macos-support.md) | The macOS evidence, the open points, and the checklist for a Mac |
 | [`research/codex-micro-state-machines.md`](research/codex-micro-state-machines.md) | The behavior we replicate, with its timing constants |
 | [`research/codex-micro-agent-key-assignment.md`](research/codex-micro-agent-key-assignment.md) | How sessions are assigned to keys |
 | [`docs/adr/`](docs/adr/) | Architectural decisions and their reasoning |

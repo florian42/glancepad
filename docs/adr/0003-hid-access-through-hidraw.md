@@ -5,6 +5,9 @@ The physical keypad needs a HID access path. We open the Linux
 through sysfs. We add no dependency. ADR-0001 names a `node-hid`
 handle; this decision replaces that detail and keeps the seam.
 
+**Extended by ADR-0004.** This decision still holds for Linux. macOS
+has no hidraw, and ADR-0004 adds a `node-hid` backend for it.
+
 ## Considered options
 
 `node-hid` is the usual choice. It works on Linux, macOS, and Windows,
@@ -31,8 +34,7 @@ systems can come later without a change to the transport.
 
 ## Consequences
 
-- Hardware mode works on Linux only. `pnpm keypad` says so on another
-  system.
+- This access path works on Linux only. ADR-0004 adds macOS.
 - The node is `root`-only by default. `udev/70-glancepad.rules` gives
   the logged-in user access.
 - Node has no readiness event for a character device. A blocking read

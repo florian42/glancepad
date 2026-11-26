@@ -3,11 +3,15 @@
 // mirrors it. Headless is the same process with no browser connected;
 // `pnpm sim:state` prints the LED state.
 
-import { linuxKeypadBackend } from "../device/hidraw.js";
 import { HidTransport } from "../device/hidtransport.js";
-import { createHyprlandFocuser, readHostSessionId } from "../focus/index.js";
+import {
+  createHyprlandFocuser,
+  createMacFocuser,
+  readHostSessionId,
+} from "../focus/index.js";
 import { SimulatedDevice } from "../simulator/index.js";
 import { configPath, loadConfig, mergeTalkCommands } from "./config.js";
+import { keypadAccessFor } from "./keypadbackend.js";
 import { DEFAULT_PORT } from "./port.js";
 import { startSimulatorServer } from "./server.js";
 import { talkCommandsFromEnv } from "./talkaction.js";
@@ -24,11 +28,12 @@ if (deviceKind !== "sim" && deviceKind !== "hid") {
 
 let hardware: HidTransport | undefined;
 if (deviceKind === "hid") {
-  if (process.platform !== "linux") {
-    console.error("hardware mode needs Linux (docs/adr/0003)");
+  const access = await keypadAccessFor(process.platform);
+  if (access === undefined) {
+    console.error("hardware mode needs Linux or macOS (docs/adr/0004)");
     process.exit(2);
   }
-  hardware = new HidTransport(linuxKeypadBackend());
+  hardware = new HidTransport(access.backend);
   hardware.onStatus((status) => {
     if (status.kind === "connected") console.log("keypad connected");
     if (status.kind === "disconnected")
@@ -36,7 +41,7 @@ if (deviceKind === "hid") {
     if (status.kind === "open-failed")
       console.error(
         `keypad found, but the open failed: ${status.reason}. ` +
-          "Install udev/70-glancepad.rules (see README).",
+          access.openHint,
       );
   });
 }
@@ -52,8 +57,11 @@ const talkCommands = mergeTalkCommands(
 const server = await startSimulatorServer(device, {
   port,
   talkCommands,
-  // The first supported window system is Hyprland (issue 12).
-  focuser: createHyprlandFocuser(),
+  // Hyprland on Linux (issue 12). On macOS, `ps` and `open`.
+  focuser:
+    process.platform === "darwin"
+      ? createMacFocuser()
+      : createHyprlandFocuser(),
   // A Claude Desktop session keeps its app session id in its record.
   hostSessionOf: (pid) => readHostSessionId(pid),
   ...(hardware === undefined ? {} : { hardware }),

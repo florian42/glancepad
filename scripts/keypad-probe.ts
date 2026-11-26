@@ -13,7 +13,6 @@
 // milliseconds, and then sends a complete message. The replies show
 // whether the keypad recovers from a message that never completes.
 
-import { linuxKeypadBackend } from "../src/device/hidraw.js";
 import { HidTransport } from "../src/device/hidtransport.js";
 import {
   CHANNEL_RPC,
@@ -28,6 +27,7 @@ import {
   SEND_COOLDOWN_MS,
   STATUS_COLORS,
 } from "../src/protocol/index.js";
+import { keypadAccessFor } from "../src/ui/keypadbackend.js";
 
 const started = Date.now();
 const stamp = (): string => `${String(Date.now() - started).padStart(6)}ms`;
@@ -36,7 +36,12 @@ const hex = (report: Uint8Array): string =>
   Array.from(report, (b) => b.toString(16).padStart(2, "0")).join("");
 const verbose = process.env.PROBE_HEX === "1";
 
-const transport = new HidTransport(linuxKeypadBackend());
+const access = await keypadAccessFor(process.platform);
+if (access === undefined) {
+  console.error("the probe needs Linux or macOS");
+  process.exit(2);
+}
+const transport = new HidTransport(access.backend);
 transport.onStatus((status) => console.log(stamp(), "status", status));
 
 let reassembly = initialReassembly;

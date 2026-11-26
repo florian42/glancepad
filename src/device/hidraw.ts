@@ -13,11 +13,17 @@ import {
 import { join } from "node:path";
 import { REPORT_SIZE } from "../protocol/index.js";
 import type { HidBackend, HidHandle } from "./hidtransport.js";
+import {
+  KEYPAD_PRODUCT_ID,
+  KEYPAD_USAGE_PAGE,
+  KEYPAD_VENDOR_ID,
+} from "./keypadid.js";
 
-/** The keypad's USB identity. Sources: docs/protocol.md §11. */
-export const KEYPAD_VENDOR_ID = 0x303a;
-export const KEYPAD_PRODUCT_ID = 0x8360;
-export const KEYPAD_USAGE_PAGE = 0xff00;
+export {
+  KEYPAD_PRODUCT_ID,
+  KEYPAD_USAGE_PAGE,
+  KEYPAD_VENDOR_ID,
+} from "./keypadid.js";
 
 export interface HidrawQuery {
   readonly vendorId: number;

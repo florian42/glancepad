@@ -5,3 +5,4 @@ export * from "./agenttaps.js";
 export * from "./desktop.js";
 export * from "./focuser.js";
 export * from "./hyprland.js";
+export * from "./macos.js";
