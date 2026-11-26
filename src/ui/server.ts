@@ -41,6 +41,12 @@ import {
   type SimulatedDevice,
   type ZoneState,
 } from "../simulator/index.js";
+import { attachPushToTalk } from "./talk.js";
+import {
+  createTalkCommandRunner,
+  type TalkCommands,
+  talkCommandsFromEnv,
+} from "./talkaction.js";
 
 const FRAME_LOG_LIMIT = 200;
 // A hook body carries prompt text. The adapter drops that text after
@@ -102,6 +108,8 @@ export interface SimulatorServerOptions {
   readonly livenessIntervalMs?: number;
   /** Gap between reports. Tests pass 0. Default is SEND_COOLDOWN_MS. */
   readonly sendCooldownMs?: number;
+  /** Push-to-talk commands. Default: the GLANCEPAD_TALK_* variables. */
+  readonly talkCommands?: TalkCommands;
 }
 
 async function readBody(req: IncomingMessage): Promise<string> {
@@ -226,6 +234,14 @@ export async function startSimulatorServer(
     broadcast({ type: "driver", driver });
   });
 
+  // Push-to-talk listens on the transport, beside the host.
+  const talk = attachPushToTalk(device, {
+    runAction: createTalkCommandRunner(
+      options.talkCommands ?? talkCommandsFromEnv(process.env),
+    ),
+    onStatus: (status) => broadcast({ type: "talk", talk: status }),
+  });
+
   device.onLighting((state) => {
     broadcast({ type: "state", state: dumpState(state) });
   });
@@ -328,7 +344,11 @@ export async function startSimulatorServer(
       // driver sits beside it so a headless check can.
       res.end(
         JSON.stringify(
-          { ...dumpState(device.lighting), driver: host.driver },
+          {
+            ...dumpState(device.lighting),
+            driver: host.driver,
+            talk: talk.status,
+          },
           null,
           2,
         ),
@@ -365,6 +385,7 @@ export async function startSimulatorServer(
           state: dumpState(device.lighting),
           driver: host.driver,
           feed: feedState(),
+          talk: talk.status,
           log: frameLog,
         }),
       );
@@ -404,6 +425,7 @@ export async function startSimulatorServer(
     applySession,
     close: async () => {
       clearInterval(liveness);
+      talk.close();
       host.close();
       wss.close();
       for (const client of wss.clients) client.terminate();

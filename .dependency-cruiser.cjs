@@ -23,6 +23,14 @@ module.exports = {
       to: { pathNot: "^src/(sessions|protocol)" },
     },
     {
+      name: "talk-is-pure",
+      comment:
+        "src/talk (the push-to-talk machine) must import nothing outside src/talk — no packages, no node builtins, no other src modules.",
+      severity: "error",
+      from: { path: "^src/talk" },
+      to: { pathNot: "^src/talk" },
+    },
+    {
       name: "simulator-no-ui",
       comment:
         "src/simulator must not import src/ui — keeps headless mode real.",

@@ -160,6 +160,8 @@
     border: 1px solid var(--edge); border-radius: 5px; padding: 2px 4px;
   }
   #selection-lighting { color: var(--muted); font-size: 12px; margin: 8px 0 0; }
+  #talk-line { margin: 12px 0 0; color: var(--muted); font-size: 12px; }
+  #talk-line.talking { color: #ff5a5a; }
   #source-line { margin: 0 0 8px; color: var(--muted); font-size: 12px; }
   td.session { color: var(--muted); font-size: 11px; font-family: ui-monospace, monospace; }
   button.forget {
@@ -216,6 +218,7 @@
         <div class="row commands" id="cmd-row"></div>
       </div>
     </div>
+    <p id="talk-line">talk: idle</p>
   </section>
   <section>
     <h2>Driver — slot statuses</h2>
@@ -305,10 +308,12 @@
         paintState(message.state);
         paintDriver(message.driver);
         paintFeed(message.feed);
+        paintTalk(message.talk);
       }
       if (message.type === "state") paintState(message.state);
       if (message.type === "driver") paintDriver(message.driver);
       if (message.type === "feed") paintFeed(message.feed);
+      if (message.type === "talk") paintTalk(message.talk);
       if (message.type === "frame") appendLog(message.entry);
     };
   };
@@ -447,6 +452,17 @@
     });
     const none = document.querySelector('input[type="radio"][data-slot="-1"]');
     if (none) none.disabled = locked;
+  };
+
+  // The push-to-talk machine state, and the result of the last action.
+  const paintTalk = (talk) => {
+    if (!talk) return;
+    const last = talk.lastAction
+      ? ` — last action ${talk.lastAction}: ${talk.lastOutcome}`
+      : "";
+    $("talk-line").textContent =
+      `talk: ${talk.phase}${talk.talking ? " (recording)" : ""}${last}`;
+    $("talk-line").classList.toggle("talking", talk.talking);
   };
 
   /* ── Frame log ── */

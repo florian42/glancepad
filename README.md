@@ -37,6 +37,66 @@ clickable; press and release emit real `v.oai.hid` notifications through
 the same framing code hardware mode will use. Headless is the same
 process with no browser connected.
 
+## Push-to-talk
+
+The microphone key (`ACT10_ACT11`, keycap `MIC`) is a push-to-talk key.
+The key id comes from reading. No keypad confirmed it.
+
+| Gesture | Result |
+|---|---|
+| Hold the key for 350 ms or longer | `talk-start` on press, `talk-stop` on release |
+| Tap the key one time | `talk-start` on press, `talk-stop` 350 ms after the press |
+| Tap the key two times in 350 ms | `talk-start`, then the recording stays on (latch) |
+| Press the key while latched | `talk-stop`. The key ignores presses for the next 350 ms |
+
+glancepad does not record audio. Each action runs a shell command that
+you set:
+
+```sh
+GLANCEPAD_TALK_START='<command>' GLANCEPAD_TALK_STOP='<command>' pnpm sim
+```
+
+The commands run with `sh -c`, one at a time, in order. A command that
+runs longer than 5 seconds is stopped. A command that fails writes one
+line to the log and the server continues. The output of a command is
+not logged. With no command set, the key does nothing. The simulator
+page shows the machine state and the result of the last action.
+
+**Why a command, and not Claude Code voice input directly.** Claude
+Code 2.1.332 starts dictation from a key in the focused terminal only
+(default `Space`, action `voice:pushToTalk`). Its documentation gives
+no flag, hook, socket, or other interface that starts dictation from a
+second process. Sources:
+[voice dictation](https://code.claude.com/docs/en/voice-dictation),
+[keybindings](https://code.claude.com/docs/en/keybindings). A command
+also lets you use a different dictation tool.
+
+### Example: Claude Code dictation on Hyprland
+
+This example is **not tested**. It needs a microphone and a terminal
+that has the focus, and the session that wrote it had neither.
+
+1. In Claude Code, run `/voice tap`. In tap mode, one key press starts
+   the recording and the next key press stops it and sends the prompt.
+   Hold mode is not expected to work here: it detects a hold from key
+   repeat, and one injected key press has no repeat.
+2. Bind `voice:pushToTalk` to a modifier chord in
+   `~/.claude/keybindings.json`, for example `meta+k`. A chord starts
+   the recording on the first key press.
+3. Let both commands send that chord to the terminal window.
+   `hyprctl dispatch sendshortcut` is part of Hyprland, so no other
+   tool is necessary:
+
+   ```sh
+   export GLANCEPAD_TALK_START='hyprctl dispatch sendshortcut "ALT, K, class:^(kitty)$"'
+   export GLANCEPAD_TALK_STOP="$GLANCEPAD_TALK_START"
+   pnpm sim
+   ```
+
+The window rule selects one kitty window. Change it when you use
+ghostty or more than one terminal. Because the stop key sends the
+prompt, a single short tap of the microphone key sends after 350 ms.
+
 ## Optional Claude Code mod
 
 The mod targets Claude Code 2.1.287. That build's mod API is early
