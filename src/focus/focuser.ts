@@ -1,6 +1,8 @@
 // The window-focus seam. One implementation exists per window system.
-// The handle is a process id, because that is what a session can
-// report about itself: see research/session-window-handle.md.
+// A terminal session reports a process id. A Claude Desktop session
+// reports its host session id also, because one app window contains
+// all its sessions. See research/session-window-handle.md and
+// research/claude-desktop-sessions.md.
 
 export type FocusResult =
   | { readonly focused: true; readonly window: string }
@@ -13,4 +15,13 @@ export interface WindowFocuser {
    * rejects: a failure comes back as `{focused: false}`.
    */
   focusProcess(pid: number): Promise<FocusResult>;
+  /**
+   * Selects one session in the Claude Desktop app and brings the app
+   * window to the front. `pid` is the session process when known; it
+   * finds the app window. Never rejects.
+   */
+  focusDesktopSession(
+    hostSessionId: string,
+    pid: number | undefined,
+  ): Promise<FocusResult>;
 }

@@ -16,7 +16,11 @@ import { createHost } from "../device/host.js";
 import { onKeyEvent } from "../device/keyevents.js";
 import { teeTransport } from "../device/tee.js";
 import type { DeviceTransport } from "../device/transport.js";
-import { createAgentTaps, type WindowFocuser } from "../focus/index.js";
+import {
+  createAgentTaps,
+  parseHostSessionId,
+  type WindowFocuser,
+} from "../focus/index.js";
 import { parseModEvent, toSessionEvent } from "../mods/index.js";
 import {
   AGENT_KEYS,
@@ -116,6 +120,11 @@ export interface SimulatorServerOptions {
   readonly talkCommands?: TalkCommands;
   /** Brings a session window to the front on a tap. Default: none. */
   readonly focuser?: WindowFocuser;
+  /**
+   * Finds the Claude Desktop session id of a session process, for a
+   * session that sent a process id only. Default: none.
+   */
+  readonly hostSessionOf?: (pid: number) => Promise<string | undefined>;
   /** False asks for a double tap. Default is true. */
   readonly singleTapAgentKeys?: boolean;
   /**
@@ -128,6 +137,9 @@ export interface SimulatorServerOptions {
 // A SessionStart command hook reports the process id of its session
 // in this header. See research/session-window-handle.md.
 const PROCESS_HEADER = "x-glancepad-pid";
+// A session of the Claude Desktop app reports its app session id
+// also. See research/claude-desktop-sessions.md.
+const HOST_SESSION_HEADER = "x-glancepad-host-session";
 
 async function readBody(req: IncomingMessage): Promise<string> {
   const chunks: Buffer[] = [];
@@ -363,8 +375,17 @@ export async function startSimulatorServer(
       try {
         if (sessionEvent) {
           const pid = Number(req.headers[PROCESS_HEADER]);
-          if (Number.isInteger(pid) && pid > 1) {
-            taps.setProcess(sessionEvent.sessionId, pid);
+          const hasPid = Number.isInteger(pid) && pid > 1;
+          if (hasPid) taps.setProcess(sessionEvent.sessionId, pid);
+          const hostSession =
+            parseHostSessionId(req.headers[HOST_SESSION_HEADER]) ??
+            (hasPid
+              ? parseHostSessionId(
+                  await options.hostSessionOf?.(pid).catch(() => undefined),
+                )
+              : undefined);
+          if (hostSession !== undefined) {
+            taps.setDesktopSession(sessionEvent.sessionId, hostSession);
           }
           source = "sessions";
           await applySession(sessionEvent);

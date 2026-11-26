@@ -29,7 +29,9 @@ export interface AgentTapsOptions {
 export interface AgentTaps {
   /** Records the process id that a session reported. */
   setProcess(sessionId: string, pid: number): void;
-  /** Drops the process id of a session that ended. */
+  /** Records the Claude Desktop session id that a session reported. */
+  setDesktopSession(sessionId: string, hostSessionId: string): void;
+  /** Drops the handles of a session that ended. */
   forget(sessionId: string): void;
   /**
    * Feeds one key event. Returns the session that the tap activated,
@@ -47,20 +49,25 @@ export function createAgentTaps(options: AgentTapsOptions): AgentTaps {
       console.error(`focus failed for session ${sessionId}: ${reason}`);
     });
   const processes = new Map<string, number>();
+  const desktopSessions = new Map<string, string>();
   let state: TapState = initialTapState;
 
   const focus = async (sessionId: string): Promise<void> => {
     if (options.focuser === undefined) return;
     const pid = processes.get(sessionId);
+    const hostSessionId = desktopSessions.get(sessionId);
     let result: FocusResult;
-    if (pid === undefined) {
-      result = { focused: false, reason: "the session reported no process" };
-    } else {
-      try {
+    try {
+      // The session decides the path by what it reported.
+      if (hostSessionId !== undefined) {
+        result = await options.focuser.focusDesktopSession(hostSessionId, pid);
+      } else if (pid !== undefined) {
         result = await options.focuser.focusProcess(pid);
-      } catch (error) {
-        result = { focused: false, reason: String(error) };
+      } else {
+        result = { focused: false, reason: "the session reported no process" };
       }
+    } catch (error) {
+      result = { focused: false, reason: String(error) };
     }
     if (!result.focused) onFocusFailure(sessionId, result.reason);
   };
@@ -69,8 +76,12 @@ export function createAgentTaps(options: AgentTapsOptions): AgentTaps {
     setProcess: (sessionId, pid) => {
       processes.set(sessionId, pid);
     },
+    setDesktopSession: (sessionId, hostSessionId) => {
+      desktopSessions.set(sessionId, hostSessionId);
+    },
     forget: (sessionId) => {
       processes.delete(sessionId);
+      desktopSessions.delete(sessionId);
     },
     key: async (key, act) => {
       if (act !== KEY_ACTS.press) return null;

@@ -8,9 +8,15 @@
 
 import { execFile } from "node:child_process";
 import { readFile } from "node:fs/promises";
+import {
+  DESKTOP_WINDOW_CLASS,
+  desktopSessionUri,
+  parseHostSessionId,
+} from "./desktop.js";
 import type { FocusResult, WindowFocuser } from "./focuser.js";
 
 const HYPRCTL_TIMEOUT_MS = 2000;
+const OPEN_TIMEOUT_MS = 5000;
 // A process tree deeper than this is not a terminal with a shell.
 const MAX_ANCESTORS = 32;
 const ADDRESS = /^0x[0-9a-f]+$/;
@@ -18,6 +24,8 @@ const ADDRESS = /^0x[0-9a-f]+$/;
 export interface HyprlandClient {
   readonly address: string;
   readonly pid: number;
+  /** The window class. Absent when Hyprland reports none. */
+  readonly class?: string;
 }
 
 export interface HyprlandDeps {
@@ -25,7 +33,18 @@ export interface HyprlandDeps {
   readonly hyprctl?: (args: readonly string[]) => Promise<string>;
   /** Returns the parent process id, or `undefined` when unknown. */
   readonly parentOf?: (pid: number) => Promise<number | undefined>;
+  /** Opens a link with the system handler. Rejects on a failure. */
+  readonly openUri?: (uri: string) => Promise<void>;
 }
+
+// `xdg-open` starts a second `claude-desktop` process. That process
+// gives the link to the running app and exits.
+const xdgOpen = (uri: string): Promise<void> =>
+  new Promise((resolve, reject) => {
+    execFile("xdg-open", [uri], { timeout: OPEN_TIMEOUT_MS }, (error) =>
+      error ? reject(error) : resolve(),
+    );
+  });
 
 const runHyprctl = (args: readonly string[]): Promise<string> =>
   new Promise((resolve, reject) => {
@@ -67,10 +86,13 @@ export function parseClients(text: string): HyprlandClient[] {
   if (!Array.isArray(value)) return [];
   return value.flatMap((entry: unknown) => {
     if (typeof entry !== "object" || entry === null) return [];
-    const { address, pid } = entry as Record<string, unknown>;
+    const record = entry as Record<string, unknown>;
+    const { address, pid } = record;
     if (typeof address !== "string" || !ADDRESS.test(address)) return [];
     if (typeof pid !== "number") return [];
-    return [{ address, pid }];
+    return typeof record.class === "string"
+      ? [{ address, pid, class: record.class }]
+      : [{ address, pid }];
   });
 }
 
@@ -94,6 +116,7 @@ export function pickClient(
 export function createHyprlandFocuser(deps: HyprlandDeps = {}): WindowFocuser {
   const hyprctl = deps.hyprctl ?? runHyprctl;
   const parentOf = deps.parentOf ?? procParentOf;
+  const openUri = deps.openUri ?? xdgOpen;
 
   const ancestors = async (pid: number): Promise<number[]> => {
     const chain = [pid];
@@ -119,6 +142,23 @@ export function createHyprlandFocuser(deps: HyprlandDeps = {}): WindowFocuser {
     }
   };
 
+  const focusClient = async (client: HyprlandClient): Promise<FocusResult> => {
+    const target = `address:${client.address}`;
+    // A Lua configuration takes the first form. A hyprlang
+    // configuration takes the second form.
+    const focused =
+      (await dispatch([`hl.dsp.focus({ window = "${target}" })`])) ||
+      (await dispatch(["focuswindow", target]));
+    return focused
+      ? { focused: true, window: client.address }
+      : { focused: false, reason: "hyprctl refused the dispatch" };
+  };
+
+  const failure = (error: unknown): FocusResult => ({
+    focused: false,
+    reason: error instanceof Error ? error.message : "hyprctl failed",
+  });
+
   return {
     focusProcess: async (pid): Promise<FocusResult> => {
       try {
@@ -127,20 +167,46 @@ export function createHyprlandFocuser(deps: HyprlandDeps = {}): WindowFocuser {
         if (client === undefined) {
           return { focused: false, reason: "no window for the process" };
         }
-        const target = `address:${client.address}`;
-        // A Lua configuration takes the first form. A hyprlang
-        // configuration takes the second form.
-        const focused =
-          (await dispatch([`hl.dsp.focus({ window = "${target}" })`])) ||
-          (await dispatch(["focuswindow", target]));
-        return focused
-          ? { focused: true, window: client.address }
-          : { focused: false, reason: "hyprctl refused the dispatch" };
+        return await focusClient(client);
       } catch (error) {
-        return {
-          focused: false,
-          reason: error instanceof Error ? error.message : "hyprctl failed",
-        };
+        return failure(error);
+      }
+    },
+
+    focusDesktopSession: async (hostSessionId, pid): Promise<FocusResult> => {
+      const id = parseHostSessionId(hostSessionId);
+      if (id === undefined) {
+        return { focused: false, reason: "not a Claude Desktop session id" };
+      }
+      try {
+        // The link selects the session in the app. It does not bring
+        // the window to the front on Hyprland, so both steps are
+        // necessary.
+        let opened = true;
+        try {
+          await openUri(desktopSessionUri(id));
+        } catch {
+          opened = false;
+        }
+        const clients = parseClients(await hyprctl(["clients", "-j"]));
+        const client =
+          (pid === undefined
+            ? undefined
+            : pickClient(await ancestors(pid), clients)) ??
+          clients.find((entry) => entry.class === DESKTOP_WINDOW_CLASS);
+        if (client === undefined) {
+          return { focused: false, reason: "no Claude Desktop window" };
+        }
+        const result = await focusClient(client);
+        if (result.focused && !opened) {
+          return {
+            focused: false,
+            reason: "the session link did not open; only the window has focus",
+          };
+        }
+        return result;
+      } catch (error) {
+        return failure(error);
       }
     },
   };

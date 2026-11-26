@@ -5,7 +5,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "# The /events endpoint has no authentication. The loopback bind is its only guard.\n# $PPID is the claude process. glancepad finds the terminal window from it.\ncurl -sf --max-time 2 -X POST -H \"content-type: application/json\" -H \"x-glancepad-pid: $PPID\" --data-binary @- http://127.0.0.1:4180/events >/dev/null || true"
+            "command": "# The /events endpoint has no authentication. The loopback bind is its only guard.\n# $PPID is the claude process. glancepad finds the window from it.\n# A Claude Desktop session has CLAUDE_CODE_HOST_SESSION_ID. A terminal session sends no such header.\ncurl -sf --max-time 2 -X POST -H \"content-type: application/json\" -H \"x-glancepad-pid: $PPID\" -H \"x-glancepad-host-session: ${CLAUDE_CODE_HOST_SESSION_ID:-}\" --data-binary @- http://127.0.0.1:4180/events >/dev/null || true"
           }
         ]
       }
@@ -15,7 +15,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "# The /events endpoint has no authentication. The loopback bind is its only guard.\n# $PPID is the claude process. glancepad finds the terminal window from it.\ncurl -sf --max-time 2 -X POST -H \"content-type: application/json\" -H \"x-glancepad-pid: $PPID\" --data-binary @- http://127.0.0.1:4180/events >/dev/null || true"
+            "command": "# The /events endpoint has no authentication. The loopback bind is its only guard.\n# $PPID is the claude process. glancepad finds the window from it.\n# A Claude Desktop session has CLAUDE_CODE_HOST_SESSION_ID. A terminal session sends no such header.\ncurl -sf --max-time 2 -X POST -H \"content-type: application/json\" -H \"x-glancepad-pid: $PPID\" -H \"x-glancepad-host-session: ${CLAUDE_CODE_HOST_SESSION_ID:-}\" --data-binary @- http://127.0.0.1:4180/events >/dev/null || true"
           }
         ]
       }
@@ -25,7 +25,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "# The /events endpoint has no authentication. The loopback bind is its only guard.\n# $PPID is the claude process. glancepad finds the terminal window from it.\ncurl -sf --max-time 2 -X POST -H \"content-type: application/json\" -H \"x-glancepad-pid: $PPID\" --data-binary @- http://127.0.0.1:4180/events >/dev/null || true"
+            "command": "# The /events endpoint has no authentication. The loopback bind is its only guard.\n# $PPID is the claude process. glancepad finds the window from it.\n# A Claude Desktop session has CLAUDE_CODE_HOST_SESSION_ID. A terminal session sends no such header.\ncurl -sf --max-time 2 -X POST -H \"content-type: application/json\" -H \"x-glancepad-pid: $PPID\" -H \"x-glancepad-host-session: ${CLAUDE_CODE_HOST_SESSION_ID:-}\" --data-binary @- http://127.0.0.1:4180/events >/dev/null || true"
           }
         ]
       }
@@ -35,7 +35,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "# The /events endpoint has no authentication. The loopback bind is its only guard.\n# $PPID is the claude process. glancepad finds the terminal window from it.\ncurl -sf --max-time 2 -X POST -H \"content-type: application/json\" -H \"x-glancepad-pid: $PPID\" --data-binary @- http://127.0.0.1:4180/events >/dev/null || true"
+            "command": "# The /events endpoint has no authentication. The loopback bind is its only guard.\n# $PPID is the claude process. glancepad finds the window from it.\n# A Claude Desktop session has CLAUDE_CODE_HOST_SESSION_ID. A terminal session sends no such header.\ncurl -sf --max-time 2 -X POST -H \"content-type: application/json\" -H \"x-glancepad-pid: $PPID\" -H \"x-glancepad-host-session: ${CLAUDE_CODE_HOST_SESSION_ID:-}\" --data-binary @- http://127.0.0.1:4180/events >/dev/null || true"
           }
         ]
       }
@@ -45,7 +45,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "# The /events endpoint has no authentication. The loopback bind is its only guard.\n# $PPID is the claude process. glancepad finds the terminal window from it.\ncurl -sf --max-time 2 -X POST -H \"content-type: application/json\" -H \"x-glancepad-pid: $PPID\" --data-binary @- http://127.0.0.1:4180/events >/dev/null || true"
+            "command": "# The /events endpoint has no authentication. The loopback bind is its only guard.\n# $PPID is the claude process. glancepad finds the window from it.\n# A Claude Desktop session has CLAUDE_CODE_HOST_SESSION_ID. A terminal session sends no such header.\ncurl -sf --max-time 2 -X POST -H \"content-type: application/json\" -H \"x-glancepad-pid: $PPID\" -H \"x-glancepad-host-session: ${CLAUDE_CODE_HOST_SESSION_ID:-}\" --data-binary @- http://127.0.0.1:4180/events >/dev/null || true"
           }
         ]
       }
@@ -55,7 +55,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "# The /events endpoint has no authentication. The loopback bind is its only guard.\n# $PPID is the claude process. glancepad finds the terminal window from it.\ncurl -sf --max-time 2 -X POST -H \"content-type: application/json\" -H \"x-glancepad-pid: $PPID\" --data-binary @- http://127.0.0.1:4180/events >/dev/null || true"
+            "command": "# The /events endpoint has no authentication. The loopback bind is its only guard.\n# $PPID is the claude process. glancepad finds the window from it.\n# A Claude Desktop session has CLAUDE_CODE_HOST_SESSION_ID. A terminal session sends no such header.\ncurl -sf --max-time 2 -X POST -H \"content-type: application/json\" -H \"x-glancepad-pid: $PPID\" -H \"x-glancepad-host-session: ${CLAUDE_CODE_HOST_SESSION_ID:-}\" --data-binary @- http://127.0.0.1:4180/events >/dev/null || true"
           }
         ]
       }
@@ -65,7 +65,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "# The /events endpoint has no authentication. The loopback bind is its only guard.\n# $PPID is the claude process. glancepad finds the terminal window from it.\ncurl -sf --max-time 2 -X POST -H \"content-type: application/json\" -H \"x-glancepad-pid: $PPID\" --data-binary @- http://127.0.0.1:4180/events >/dev/null || true"
+            "command": "# The /events endpoint has no authentication. The loopback bind is its only guard.\n# $PPID is the claude process. glancepad finds the window from it.\n# A Claude Desktop session has CLAUDE_CODE_HOST_SESSION_ID. A terminal session sends no such header.\ncurl -sf --max-time 2 -X POST -H \"content-type: application/json\" -H \"x-glancepad-pid: $PPID\" -H \"x-glancepad-host-session: ${CLAUDE_CODE_HOST_SESSION_ID:-}\" --data-binary @- http://127.0.0.1:4180/events >/dev/null || true"
           }
         ]
       }
@@ -75,7 +75,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "# The /events endpoint has no authentication. The loopback bind is its only guard.\n# $PPID is the claude process. glancepad finds the terminal window from it.\ncurl -sf --max-time 2 -X POST -H \"content-type: application/json\" -H \"x-glancepad-pid: $PPID\" --data-binary @- http://127.0.0.1:4180/events >/dev/null || true"
+            "command": "# The /events endpoint has no authentication. The loopback bind is its only guard.\n# $PPID is the claude process. glancepad finds the window from it.\n# A Claude Desktop session has CLAUDE_CODE_HOST_SESSION_ID. A terminal session sends no such header.\ncurl -sf --max-time 2 -X POST -H \"content-type: application/json\" -H \"x-glancepad-pid: $PPID\" -H \"x-glancepad-host-session: ${CLAUDE_CODE_HOST_SESSION_ID:-}\" --data-binary @- http://127.0.0.1:4180/events >/dev/null || true"
           }
         ]
       }
@@ -85,7 +85,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "# The /events endpoint has no authentication. The loopback bind is its only guard.\n# $PPID is the claude process. glancepad finds the terminal window from it.\ncurl -sf --max-time 2 -X POST -H \"content-type: application/json\" -H \"x-glancepad-pid: $PPID\" --data-binary @- http://127.0.0.1:4180/events >/dev/null || true"
+            "command": "# The /events endpoint has no authentication. The loopback bind is its only guard.\n# $PPID is the claude process. glancepad finds the window from it.\n# A Claude Desktop session has CLAUDE_CODE_HOST_SESSION_ID. A terminal session sends no such header.\ncurl -sf --max-time 2 -X POST -H \"content-type: application/json\" -H \"x-glancepad-pid: $PPID\" -H \"x-glancepad-host-session: ${CLAUDE_CODE_HOST_SESSION_ID:-}\" --data-binary @- http://127.0.0.1:4180/events >/dev/null || true"
           }
         ]
       }
@@ -95,7 +95,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "# The /events endpoint has no authentication. The loopback bind is its only guard.\n# $PPID is the claude process. glancepad finds the terminal window from it.\ncurl -sf --max-time 2 -X POST -H \"content-type: application/json\" -H \"x-glancepad-pid: $PPID\" --data-binary @- http://127.0.0.1:4180/events >/dev/null || true"
+            "command": "# The /events endpoint has no authentication. The loopback bind is its only guard.\n# $PPID is the claude process. glancepad finds the window from it.\n# A Claude Desktop session has CLAUDE_CODE_HOST_SESSION_ID. A terminal session sends no such header.\ncurl -sf --max-time 2 -X POST -H \"content-type: application/json\" -H \"x-glancepad-pid: $PPID\" -H \"x-glancepad-host-session: ${CLAUDE_CODE_HOST_SESSION_ID:-}\" --data-binary @- http://127.0.0.1:4180/events >/dev/null || true"
           }
         ]
       }
@@ -105,7 +105,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "# The /events endpoint has no authentication. The loopback bind is its only guard.\n# $PPID is the claude process. glancepad finds the terminal window from it.\ncurl -sf --max-time 2 -X POST -H \"content-type: application/json\" -H \"x-glancepad-pid: $PPID\" --data-binary @- http://127.0.0.1:4180/events >/dev/null || true"
+            "command": "# The /events endpoint has no authentication. The loopback bind is its only guard.\n# $PPID is the claude process. glancepad finds the window from it.\n# A Claude Desktop session has CLAUDE_CODE_HOST_SESSION_ID. A terminal session sends no such header.\ncurl -sf --max-time 2 -X POST -H \"content-type: application/json\" -H \"x-glancepad-pid: $PPID\" -H \"x-glancepad-host-session: ${CLAUDE_CODE_HOST_SESSION_ID:-}\" --data-binary @- http://127.0.0.1:4180/events >/dev/null || true"
           }
         ]
       }

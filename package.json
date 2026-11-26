@@ -12,6 +12,8 @@
     "keypad": "tsx src/ui/main.ts --device hid",
     "keypad:probe": "tsx scripts/keypad-probe.ts",
     "sim:state": "tsx src/ui/statecli.ts",
+    "hooks:install": "node scripts/install-hooks.mjs",
+    "hooks:remove": "node scripts/install-hooks.mjs --remove",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "lint": "biome check .",

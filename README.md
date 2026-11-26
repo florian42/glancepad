@@ -27,6 +27,37 @@ the keypad sent, and what is still unread: the LED count, the exact
 breath period, and the snake shape. macOS and Windows have no hardware
 mode yet ([ADR-0003](docs/adr/0003-hid-access-through-hidraw.md)).
 
+## Set up for Claude Desktop
+
+This is the main setup. It is for sessions in the Code tab of the
+Claude Desktop app, on Linux with Hyprland. Terminal sessions use the
+same setup.
+
+```sh
+pnpm install
+pnpm hooks:install   # adds the glancepad hooks to ~/.claude/settings.json
+pnpm keypad          # or `pnpm sim` without a keypad
+```
+
+`pnpm hooks:install` keeps your other settings and your other hooks.
+It writes a copy of the old file to
+`~/.claude/settings.json.glancepad-backup`. `pnpm hooks:remove` removes
+the hooks again. A session reads the settings at its start, so start a
+new session after the installation. For the keypad, install the udev
+rule one time: see "Run with a physical keypad".
+
+| Feature | Claude Desktop session | Terminal session |
+|---|---|---|
+| Key lighting | Works. The user settings file is the only file that applies to all sessions | Works |
+| Agent key opens the session | Works. glancepad opens the session link and focuses the app window | Works. glancepad focuses the terminal window |
+| Microphone key | **No dictation.** The Linux desktop app has no voice input | Possible with `/voice`. See "Push-to-talk" |
+
+Do not put the hooks in `.claude/settings.local.json` of a worktree.
+The app reads project and local settings from the main checkout, and a
+session in a worktree ignores the file in the worktree. The evidence
+for this section is in
+[`research/claude-desktop-sessions.md`](research/claude-desktop-sessions.md).
+
 ## Run the simulator
 
 ```sh
@@ -65,6 +96,17 @@ runs longer than 5 seconds is stopped. A command that fails writes one
 line to the log and the server continues. The output of a command is
 not logged. With no command set, the key does nothing. The simulator
 page shows the machine state and the result of the last action.
+
+**Claude Desktop on Linux has no dictation to start.** The vendor
+documentation says that voice input is not available in the Linux
+desktop app
+([Claude Desktop on Linux](https://code.claude.com/docs/en/desktop-linux),
+read on 2026-11-26). The system-wide dictation shortcut is for macOS
+only, and no `claude://` link starts dictation. Thus no command can
+start dictation in a Claude Desktop session on Linux. The nearest
+alternatives are a Claude Code session in a terminal (the example
+below), or a system dictation tool that types into the focused window
+and that has a start command and a stop command.
 
 **Why a command, and not Claude Code voice input directly.** Claude
 Code 2.1.332 starts dictation from a key in the focused terminal only
@@ -155,31 +197,48 @@ An unknown body is ignored. The server does not log the body.
 
 ## Bring a session to the front
 
-A press on an agent key brings the terminal window of that session to
-the front. It also marks the session as read: an `unread` key goes to
-`idle`. A press on an empty key does nothing.
+A press on an agent key brings the session of that key to the front.
+It also marks the session as read: an `unread` key goes to `idle`. A
+press on an empty key does nothing.
 
 Setup:
 
 1. Use Hyprland. No other window system has an implementation yet.
-2. Load [`scripts/glancepad.settings.json`](scripts/glancepad.settings.json)
-   in each session. Its `SessionStart` hook must stay a command hook. It
-   sends the process id of the session in the `x-glancepad-pid` header.
-   It sends no prompt text.
-3. Start `pnpm sim`. It finds `hyprctl` on the `PATH`.
+2. Install the hooks with `pnpm hooks:install`, or load
+   [`scripts/glancepad.settings.json`](scripts/glancepad.settings.json)
+   in one session with `claude --settings scripts/glancepad.settings.json`.
+   The hooks must stay command hooks. They send the process id of the
+   session in the `x-glancepad-pid` header. A Claude Desktop session
+   sends its app session id also, in the `x-glancepad-host-session`
+   header. The hooks send no prompt text.
+3. Start `pnpm keypad` or `pnpm sim`. It finds `hyprctl` and `xdg-open`
+   on the `PATH`.
 
-```sh
-claude --settings scripts/glancepad.settings.json
-```
+Each session selects its path by what it reported:
 
-glancepad finds the window from the process id at the time of the
-press. A session that sent no process id is marked as read, and its
-window stays where it is. A failed focus writes one line to the log.
+- **A Claude Desktop session** reported an app session id
+  (`local_<uuid>`). glancepad opens
+  `claude://claude.ai/epitaxy/local_<uuid>` with `xdg-open`, and the
+  app selects that session. glancepad then focuses the app window,
+  because the link does not bring the window to the front on Hyprland.
+  When the header is absent, glancepad reads the id from the session
+  record `~/.claude/sessions/<pid>.json`.
+- **A terminal session** reported a process id only. glancepad finds
+  the terminal window from the process id at the time of the press.
 
-The focus goes to the terminal window. It does not select a tab or a
-split. One terminal process with two windows is not resolved. tmux is
-not supported. See
-[`research/session-window-handle.md`](research/session-window-handle.md).
+A session that sent no process id is marked as read, and its window
+stays where it is. A failed focus writes one line to the log.
+
+Limits for a Claude Desktop session: a session in a pop-out window is
+not tested. The link and the record file are not documented by the
+vendor, and they can change with an app update.
+
+Limits for a terminal session: the focus goes to the terminal window.
+It does not select a tab or a split. One terminal process with two
+windows is not resolved. tmux is not supported. See
+[`research/session-window-handle.md`](research/session-window-handle.md)
+and
+[`research/claude-desktop-sessions.md`](research/claude-desktop-sessions.md).
 
 ## What is here
 
@@ -187,6 +246,7 @@ not supported. See
 |---|---|
 | [`research/roadmap.md`](research/roadmap.md) | The goal, and the feature order |
 | [`research/virtual-device-options.md`](research/virtual-device-options.md) | Why we build our own simulator, and the recovered wire protocol |
+| [`research/claude-desktop-sessions.md`](research/claude-desktop-sessions.md) | What a Claude Desktop session sends, and how glancepad opens it |
 | [`research/codex-micro-state-machines.md`](research/codex-micro-state-machines.md) | The behavior we replicate, with its timing constants |
 | [`research/codex-micro-agent-key-assignment.md`](research/codex-micro-agent-key-assignment.md) | How sessions are assigned to keys |
 | [`docs/adr/`](docs/adr/) | Architectural decisions and their reasoning |

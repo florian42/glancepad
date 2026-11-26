@@ -22,8 +22,17 @@ const PARENTS = new Map([
   [2, 1],
 ]);
 
-function fakes(answers: { lua?: string; legacy?: string; clients?: string }) {
+function fakes(answers: {
+  lua?: string;
+  legacy?: string;
+  clients?: string;
+  openFails?: boolean;
+}) {
   const calls: string[][] = [];
+  const openUri = async (uri: string): Promise<void> => {
+    calls.push(["open", uri]);
+    if (answers.openFails) throw new Error("xdg-open failed");
+  };
   const hyprctl = async (args: readonly string[]): Promise<string> => {
     calls.push([...args]);
     if (args[0] === "clients") return answers.clients ?? CLIENTS;
@@ -31,7 +40,10 @@ function fakes(answers: { lua?: string; legacy?: string; clients?: string }) {
     return answers.lua ?? "ok\n";
   };
   const parentOf = async (pid: number) => PARENTS.get(pid);
-  return { calls, focuser: createHyprlandFocuser({ hyprctl, parentOf }) };
+  return {
+    calls,
+    focuser: createHyprlandFocuser({ hyprctl, parentOf, openUri }),
+  };
 }
 
 describe("pickClient", () => {
@@ -107,6 +119,63 @@ describe("the Hyprland focuser", () => {
     expect(await focuser.focusProcess(710)).toEqual({
       focused: false,
       reason: "spawn hyprctl ENOENT",
+    });
+  });
+});
+
+// hook shell -> claude 810 -> helper 805 -> Claude Desktop 800
+const HOST = "local_01234567-89ab-4cde-8f01-23456789abcd";
+const DESKTOP_CLIENTS = JSON.stringify([
+  { address: "0xaaa1", pid: 500, class: "kitty" },
+  { address: "0xccc3", pid: 800, class: "com.anthropic.Claude" },
+]);
+PARENTS.set(810, 805).set(805, 800).set(800, 2);
+
+describe("the Hyprland focuser, for a Claude Desktop session", () => {
+  it("opens the session link, then focuses the app window", async () => {
+    const { calls, focuser } = fakes({ clients: DESKTOP_CLIENTS });
+    expect(await focuser.focusDesktopSession(HOST, 810)).toEqual({
+      focused: true,
+      window: "0xccc3",
+    });
+    expect(calls).toEqual([
+      ["open", `claude://claude.ai/epitaxy/${HOST}`],
+      ["clients", "-j"],
+      ["dispatch", 'hl.dsp.focus({ window = "address:0xccc3" })'],
+    ]);
+  });
+
+  it("finds the app window by its class when no process is known", async () => {
+    const { focuser } = fakes({ clients: DESKTOP_CLIENTS });
+    expect(await focuser.focusDesktopSession(HOST, undefined)).toEqual({
+      focused: true,
+      window: "0xccc3",
+    });
+    expect((await focuser.focusDesktopSession(HOST, 4242)).focused).toBe(true);
+  });
+
+  it("opens nothing for an id of the wrong shape", async () => {
+    const { calls, focuser } = fakes({ clients: DESKTOP_CLIENTS });
+    const result = await focuser.focusDesktopSession("local_1 --help", 810);
+    expect(result.focused).toBe(false);
+    expect(calls).toEqual([]);
+  });
+
+  it("focuses the window and reports the failure when the link fails", async () => {
+    const { calls, focuser } = fakes({
+      clients: DESKTOP_CLIENTS,
+      openFails: true,
+    });
+    const result = await focuser.focusDesktopSession(HOST, 810);
+    expect(result.focused).toBe(false);
+    expect(calls.at(-1)?.[0]).toBe("dispatch");
+  });
+
+  it("reports a missing app window", async () => {
+    const { focuser } = fakes({});
+    expect(await focuser.focusDesktopSession(HOST, undefined)).toEqual({
+      focused: false,
+      reason: "no Claude Desktop window",
     });
   });
 });

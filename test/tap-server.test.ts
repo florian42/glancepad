@@ -11,6 +11,11 @@ import {
   startSimulatorServer,
 } from "../src/ui/server.js";
 
+// These sessions report a process only. The Desktop path stays unused.
+const notExpected = async (): Promise<never> => {
+  throw new Error("not expected");
+};
+
 let server: SimulatorServer | undefined;
 let ws: WebSocket | undefined;
 
@@ -50,11 +55,15 @@ const until = async (check: () => Promise<boolean> | boolean) => {
   }
 };
 
-async function start(focuser: WindowFocuser): Promise<WebSocket> {
+async function start(
+  focuser: WindowFocuser,
+  hostSessionOf?: (pid: number) => Promise<string | undefined>,
+): Promise<WebSocket> {
   server = await startSimulatorServer(new SimulatedDevice(), {
     port: 0,
     sendCooldownMs: 0,
     focuser,
+    ...(hostSessionOf === undefined ? {} : { hostSessionOf }),
   });
   const socket = new WebSocket(`ws://127.0.0.1:${server.port}/ws`);
   await new Promise((resolve, reject) => {
@@ -74,6 +83,7 @@ describe("a tap on an agent key", () => {
   it("focuses the session process and turns unread into idle", async () => {
     const focused: number[] = [];
     const socket = await start({
+      focusDesktopSession: notExpected,
       focusProcess: async (pid) => {
         focused.push(pid);
         return { focused: true, window: "0x1" };
@@ -93,6 +103,7 @@ describe("a tap on an agent key", () => {
   it("keeps the key order, and leaves a working session as it is", async () => {
     const focused: number[] = [];
     const socket = await start({
+      focusDesktopSession: notExpected,
       focusProcess: async (pid) => {
         focused.push(pid);
         return { focused: true, window: "0x1" };
@@ -116,6 +127,7 @@ describe("a tap on an agent key", () => {
   it("does nothing on an empty key", async () => {
     const focused: number[] = [];
     const socket = await start({
+      focusDesktopSession: notExpected,
       focusProcess: async (pid) => {
         focused.push(pid);
         return { focused: true, window: "0x1" };
@@ -134,6 +146,7 @@ describe("a tap on an agent key", () => {
       errors.push(args.map(String).join(" "));
     });
     const socket = await start({
+      focusDesktopSession: notExpected,
       focusProcess: async () => {
         throw new Error("hyprctl is gone");
       },
@@ -158,6 +171,7 @@ describe("a tap on an agent key", () => {
       errors.push(args.map(String).join(" "));
     });
     const socket = await start({
+      focusDesktopSession: notExpected,
       focusProcess: async (pid) => {
         focused.push(pid);
         return { focused: true, window: "0x1" };
@@ -170,5 +184,58 @@ describe("a tap on an agent key", () => {
     tap(socket, "AG00");
     await until(() => errors.length === 1);
     expect(focused).toEqual([]);
+  });
+
+  const HOST = "local_01234567-89ab-4cde-8f01-23456789abcd";
+  const desktopFocuser = (calls: string[]): WindowFocuser => ({
+    focusProcess: async (pid) => {
+      calls.push(`process ${pid}`);
+      return { focused: true, window: "0x1" };
+    },
+    focusDesktopSession: async (hostSessionId, pid) => {
+      calls.push(`desktop ${hostSessionId} ${pid}`);
+      return { focused: true, window: "0x2" };
+    },
+  });
+
+  it("opens a Claude Desktop session that sent its host session id", async () => {
+    const calls: string[] = [];
+    const socket = await start(desktopFocuser(calls));
+    await post("SessionStart", "s1", {
+      "x-glancepad-pid": "4321",
+      "x-glancepad-host-session": HOST,
+    });
+
+    tap(socket, "AG00");
+    await until(() => calls.length === 1);
+    expect(calls).toEqual([`desktop ${HOST} 4321`]);
+  });
+
+  it("finds the host session id from the process when no header came", async () => {
+    const calls: string[] = [];
+    const socket = await start(desktopFocuser(calls), async (pid) =>
+      pid === 4321 ? HOST : undefined,
+    );
+    await post("SessionStart", "desk", { "x-glancepad-pid": "4321" });
+    await post("SessionStart", "term", { "x-glancepad-pid": "777" });
+
+    tap(socket, "AG01");
+    await until(() => calls.length === 1);
+    tap(socket, "AG00");
+    await until(() => calls.length === 2);
+    expect(calls.sort()).toEqual([`desktop ${HOST} 4321`, "process 777"]);
+  });
+
+  it("ignores a host session id of the wrong shape", async () => {
+    const calls: string[] = [];
+    const socket = await start(desktopFocuser(calls));
+    await post("SessionStart", "s1", {
+      "x-glancepad-pid": "4321",
+      "x-glancepad-host-session": "local_x; rm -rf",
+    });
+
+    tap(socket, "AG00");
+    await until(() => calls.length === 1);
+    expect(calls).toEqual(["process 4321"]);
   });
 });

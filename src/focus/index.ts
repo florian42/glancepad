@@ -2,5 +2,6 @@
 // src/sessions only. `pnpm lint:deps` enforces this.
 
 export * from "./agenttaps.js";
+export * from "./desktop.js";
 export * from "./focuser.js";
 export * from "./hyprland.js";

@@ -10,6 +10,7 @@ import {
 
 function setup(overrides: Partial<AgentTapsOptions> = {}) {
   const focused: number[] = [];
+  const desktop: string[] = [];
   const read: string[] = [];
   const failures: string[] = [];
   let nowMs = 1000;
@@ -23,6 +24,10 @@ function setup(overrides: Partial<AgentTapsOptions> = {}) {
         focused.push(pid);
         return { focused: true, window: "0x1" };
       },
+      focusDesktopSession: async (id, pid): Promise<FocusResult> => {
+        desktop.push(`${id} ${pid}`);
+        return { focused: true, window: "0x2" };
+      },
     },
     now: () => nowMs,
     onFocusFailure: (sessionId, reason) => {
@@ -35,6 +40,7 @@ function setup(overrides: Partial<AgentTapsOptions> = {}) {
   return {
     taps,
     focused,
+    desktop,
     read,
     failures,
     advance: (ms: number) => {
@@ -77,6 +83,9 @@ describe("agent taps", () => {
         focusProcess: async () => {
           throw new Error("boom");
         },
+        focusDesktopSession: async () => {
+          throw new Error("boom");
+        },
       },
     });
     expect(await taps.key("AG00", 1)).toBe("a");
@@ -103,5 +112,23 @@ describe("agent taps", () => {
     advance(351);
     expect(await taps.key("AG00", 1)).toBeNull();
     expect(focused).toEqual([111]);
+  });
+
+  it("takes the Desktop path for a session that reported a host session id", async () => {
+    const { taps, focused, desktop } = setup();
+    taps.setDesktopSession("b", "local_x");
+    expect(await taps.key("AG01", 1)).toBe("b");
+    expect(await taps.key("AG00", 1)).toBe("a");
+    expect(desktop).toEqual(["local_x 222"]);
+    expect(focused).toEqual([111]);
+  });
+
+  it("forgets the host session id of a session that ended", async () => {
+    const { taps, desktop, failures } = setup();
+    taps.setDesktopSession("a", "local_x");
+    taps.forget("a");
+    expect(await taps.key("AG00", 1)).toBe("a");
+    expect(desktop).toEqual([]);
+    expect(failures).toEqual(["a: the session reported no process"]);
   });
 });

@@ -5,7 +5,7 @@
 
 import { linuxKeypadBackend } from "../device/hidraw.js";
 import { HidTransport } from "../device/hidtransport.js";
-import { createHyprlandFocuser } from "../focus/index.js";
+import { createHyprlandFocuser, readHostSessionId } from "../focus/index.js";
 import { SimulatedDevice } from "../simulator/index.js";
 import { DEFAULT_PORT } from "./port.js";
 import { startSimulatorServer } from "./server.js";
@@ -45,6 +45,8 @@ const server = await startSimulatorServer(device, {
   port,
   // The first supported window system is Hyprland (issue 12).
   focuser: createHyprlandFocuser(),
+  // A Claude Desktop session keeps its app session id in its record.
+  hostSessionOf: (pid) => readHostSessionId(pid),
   ...(hardware === undefined ? {} : { hardware }),
 });
 
