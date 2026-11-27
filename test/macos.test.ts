@@ -20,6 +20,15 @@ const PROCESSES = new Map([
   // A tmux server has launchd as its parent.
   [810, "  800 /Users/me/.local/bin/claude\n"],
   [800, "    1 tmux\n"],
+  // A Claude Desktop session, as `ps` showed it on macOS 26.5: the
+  // app runs its own `claude` from a bundle of its own.
+  // claude 910 -> disclaimer 900 -> Claude 890 -> launchd 1
+  [
+    910,
+    "  900 /Users/me/Library/Application Support/Claude/claude-code/2.1.331/5cdc5c10ac5c/claude.app/Contents/MacOS/claude\n",
+  ],
+  [900, "  890 /Applications/Claude.app/Contents/Helpers/disclaimer\n"],
+  [890, "    1 /Applications/Claude.app/Contents/MacOS/Claude\n"],
 ]);
 
 function fakes(answers: { openFails?: boolean } = {}) {
@@ -123,5 +132,11 @@ describe("the macOS focuser", () => {
       reason: "the session link did not open; only the window has focus",
     });
     expect(calls.at(-1)).toEqual(["-a", "/Applications/iTerm.app"]);
+  });
+
+  it("activates Claude Desktop, not the bundle of its own claude process", async () => {
+    const { calls, focuser } = fakes({ openFails: true });
+    await focuser.focusDesktopSession(SESSION, 910);
+    expect(calls.at(-1)).toEqual(["-a", "/Applications/Claude.app"]);
   });
 });

@@ -7,7 +7,8 @@
 // A terminal session reports the process id of its `claude` process.
 // `claude` is a descendant of the terminal application. So the walk
 // goes up the parent chain until the executable of a process is
-// inside an application bundle (`<name>.app`). `open -a <bundle>`
+// inside an application bundle (`<name>.app`). The walk skips the
+// session process itself. `open -a <bundle>`
 // then brings that application to the front.
 
 import { execFile } from "node:child_process";
@@ -87,7 +88,9 @@ export function createMacFocuser(deps: MacDeps = {}): WindowFocuser {
         return undefined;
       }
       if (info === undefined) return undefined;
-      const bundle = appBundleOf(info.command);
+      // The session process owns no window. Claude Desktop runs its
+      // `claude` from a `claude.app` bundle of its own, so skip it.
+      const bundle = current === pid ? undefined : appBundleOf(info.command);
       if (bundle !== undefined) return bundle;
       current = info.parent;
     }
