@@ -21,11 +21,14 @@ class FakeTransport implements DeviceTransport {
   failAtSend = 0;
   /** The device is absent: each send rejects and takes nothing. */
   refuse = false;
+  /** The time of the last send that `failAtSend` rejected. */
+  failedAt = 0;
   #connect: (() => void) | undefined;
 
   async send(report: Uint8Array): Promise<void> {
     if (this.refuse) throw new Error("DEVICE_DISCONNECTED");
     if (this.failAtSend > 0 && --this.failAtSend === 0) {
+      this.failedAt = Date.now();
       throw new Error("WRITE_FAILED");
     }
     this.sentAt.push(Date.now());
@@ -175,15 +178,16 @@ describe("host", () => {
       console.error = silenced;
     }
     expect(transport.sent).toHaveLength(1);
-    const failedAt = Date.now();
 
     transport.sent.length = 0;
     transport.sentAt.length = 0;
     await host.setSlot(1, { status: "error" });
     // The keypad drops the part after a silence. The host waits for it.
-    expect((transport.sentAt[0] ?? 0) - failedAt).toBeGreaterThanOrEqual(
-      QUIET_MS - 5,
-    );
+    // The silence starts at the failed send, so measure from there: a
+    // later clock reading in the test makes the wait look too short.
+    expect(
+      (transport.sentAt[0] ?? 0) - transport.failedAt,
+    ).toBeGreaterThanOrEqual(QUIET_MS - 5);
     // The first report starts a message. Both calls arrive, although
     // the second change alone would alter one of them at most.
     expect(methodsIn(transport.sent)).toEqual([
