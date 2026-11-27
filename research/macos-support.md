@@ -1,12 +1,54 @@
 # macOS support: HID access, session focus, hooks, and Raycast dictation
 
-Date: 2026-11-26. Machine: Arch Linux. **No Mac was available. No
-command in this note ran on macOS.**
+Date: 2026-11-26, written on Arch Linux without a Mac. Updated
+2026-11-27 after a run on macOS 26.5 (Apple silicon), Node 24.22.2,
+Ghostty, Claude Desktop, and Raycast, with the keypad connected over
+**Bluetooth LE**. USB on macOS is not tested. Issue #17 holds the raw
+output of each step.
 
-Each claim has a mark: **verified** (we ran it or read it on the Linux
-machine), **documented** (a vendor page or the library source says
-it), or **uncertain**. A "documented" claim about macOS is still not
-tested on macOS.
+Each claim has a mark: **verified on macOS** (we ran it on the Mac, or
+the user saw it), **verified** (on the Linux machine),
+**documented** (a vendor page or the library source says it), or
+**uncertain**.
+
+## Results on macOS, 2026-11-27
+
+All eight steps of the checklist in section 5 passed, after two
+fixes. **Verified on macOS:**
+
+- `node-hid` 3.4.0 loads its prebuilt binary (hidapi 0.15.0). Over
+  Bluetooth, `devices(0x303a, 0x8360)` gives **five** entries with
+  **one** path (`DevSrvsID:…`): usage pages and usages 1/6 (keyboard),
+  12/1, 1/2, 1/1, and 65280/1. Linux over USB gave three interfaces.
+- The first open failed: `hid_open_path: failed to open IOHIDDevice
+  from mach entry: (0xE00002E2) (iokit/common) not permitted`. After
+  the user granted Input Monitoring to Ghostty, the open worked
+  without a restart of Ghostty. We did not record if macOS showed a
+  dialog.
+- Input reports are 64 bytes with byte 0 equal to 6. No keyboard
+  report reached the transport. A key press arrived as
+  `{"m":"v.oai.hid","p":{"k":"AG00","act":1}}`.
+- Writes work: `v.oai.thstatus` and `v.oai.rgbcfg` returned
+  `{"ok":1}`, and six keys showed six colors.
+- Session state lit the agent keys. A tap on a Claude Desktop key
+  opened the session. A tap on a terminal key brought Ghostty to the
+  front, but with the window that was in front last.
+- A switch-off of the keypad gave `keypad disconnected (read failed:
+  could not read data from device: hid_read_timeout: device
+  disconnected), looking for it`, then `keypad connected`, and the
+  lighting returned.
+- The microphone key started and stopped Raycast Dictation through
+  `scripts/macos-hotkey.js`. See section 4.
+
+The two fixes:
+
+- The focus walk skipped no process. Claude Desktop runs `claude` from
+  a bundle of its own
+  (`…/Application Support/Claude/claude-code/<version>/…/claude.app/Contents/MacOS/claude`),
+  so the fallback opened that bundle. The walk now starts at the
+  parent of the session process.
+- `osascript` through System Events cannot drive Raycast. See
+  section 4.
 
 ## 1. Keypad transport
 
@@ -26,8 +68,8 @@ files of the
   0x8360)` gave three entries with usage pages 1, 12, and 65280. Our
   backend opened the entry with 65280, and the transport delivered
   input reports of 64 bytes with byte 0 equal to 6. This run used the
-  hidraw driver of the library. It shows that our adapter is correct.
-  It does not show what IOKit does.
+  hidraw driver of the library. **Verified on macOS (Bluetooth):**
+  IOKit gives the same layout.
 - **Documented (source):** on macOS a write with a report id that is
   not 0 gives all bytes to `IOHIDDeviceSetReport`
   (`hidapi/mac/hid.c`, `set_report`). The README says that the first
@@ -36,8 +78,7 @@ files of the
   input report callback without a change (`hid_report_callback`).
   `hidapi/hidapi/hidapi.h` says for `hid_read` that the first byte is
   the report number when the device uses numbered reports.
-  **Uncertain:** we found no Apple source that says the callback
-  buffer starts with the id. A real report must show a length of 64
+  **Verified on macOS (Bluetooth):** a real report has a length of 64
   and byte 0 equal to 6.
 - **Documented (source):** `readTimeout(0)` returns an empty array at
   once when no report waits (`hid_read_timeout`, the branch for 0
@@ -54,8 +95,10 @@ files of the
   ([IOHIDFamily](https://github.com/apple-oss-distributions/IOHIDFamily),
   `IOHIDDevice.cpp`, `kIOHIDRequiresTCCAuthorizationKey`). The node-hid
   README says the same in other words: the system protects keyboards
-  and mice. **Uncertain:** the behavior of each macOS release, and
-  whether macOS shows the vendor interface as its own device.
+  and mice. **Verified on macOS (Bluetooth): this applies to the
+  keypad.** macOS does not show the vendor interface as its own
+  device. The one device has a keyboard usage, so the open needs
+  Input Monitoring. **Uncertain:** USB.
 
 ## 2. Session focus
 
@@ -63,16 +106,23 @@ files of the
 
 - A Claude Desktop session: `open claude://claude.ai/epitaxy/local_<uuid>`.
   **Verified on Linux:** the app opens a session from this link
-  (`research/claude-desktop-sessions.md`). **Uncertain:** the macOS
-  app accepts the same link, and `open` brings the app to the front.
+  (`research/claude-desktop-sessions.md`). **Verified on macOS:** the
+  macOS app accepts the same link, and `open` brings it to the front.
   `open` does that for a link by default; the option `-g` prevents it
   (`man open`).
 - A terminal session: `ps -ww -o ppid=,comm= -p <pid>` for each
   ancestor, until the executable is in a `<name>.app/Contents/`
   directory. `open -a <bundle>`
-  then activates that application. **Uncertain:** `ps -o comm=` prints
-  the full path of the executable on macOS. On Linux it prints a short
-  name, so this machine cannot show it.
+  then activates that application. **Verified on macOS:** `ps -o comm=`
+  prints the full path of an application executable
+  (`/Applications/Ghostty.app/Contents/MacOS/ghostty`). For `claude`
+  and the shell it prints a short name (`claude`, `-/bin/zsh`), which
+  is not in a bundle. The chain was `claude` → `-/bin/zsh` →
+  `/usr/bin/login` → Ghostty.
+- **Verified on macOS:** a Claude Desktop session runs `claude` from a
+  bundle of its own, with the parent `/Applications/Claude.app/Contents/Helpers/disclaimer`
+  and then `/Applications/Claude.app/Contents/MacOS/Claude`. The walk
+  therefore skips the session process itself.
 
 Neither command needs a privacy permission. An AppleScript that
 selects a window or a tab needs the Automation permission for each
@@ -94,9 +144,11 @@ Not resolved:
 `curl`, `$PPID`, and `${NAME:-}` only. macOS contains `curl`, and its
 `/bin/sh` knows both expansions. `scripts/install-hooks.mjs` uses
 `os.homedir()` and `path.join()`, and no Linux path. We changed
-neither file. **Uncertain:** `$PPID` is the `claude` process on macOS
-as it is on Linux, and a Claude Desktop session on macOS sets
-`CLAUDE_CODE_HOST_SESSION_ID`.
+neither file. **Verified on macOS:** `$PPID` of a shell that `claude`
+starts is the `claude` process, and a Claude Desktop session has
+`CLAUDE_CODE_HOST_SESSION_ID=local_<uuid>` in its environment
+(`ps -E`). A running session also picked up the hooks without a
+restart.
 
 The configuration file follows the XDG rule on macOS also:
 `~/.config/glancepad/config.json`.
@@ -117,36 +169,52 @@ Raycast.
   `raycast://extensions/<owner>/<extension>/<command>`, and it asks
   for a confirmation.
   [Deeplinks](https://developers.raycast.com/information/lifecycle/deeplinks)
-  **Not found:** a link for Dictation. The manual page for Dictation
-  names no link and no command-line interface. Look for the action
-  "Copy Deeplink" on the Dictation command in Raycast. If it exists,
-  the result of a second run (stop, or a second start) is not known.
+  **Verified on macOS:** "Copy Deeplink" on the Dictation command
+  gives `raycast://extensions/raycast/dictation/dictate`. The first
+  `open` of it asks for a confirmation ("always allow" exists). It
+  starts Dictation. A second run does not stop it, so the link cannot
+  be the stop command.
 - **Documented:** the Raycast Hyper Key sends Ctrl+Option+Cmd, and
   Shift also with the option "Include Shift".
   [Hyper Key manual](https://manual.raycast.com/hyper-key)
 
-So the tested interface of Dictation is the hotkey, and glancepad
-must send it. The line below sends one tap of Hyper+D (key code 2 is
-the D key):
+So glancepad must send the hotkey. **Verified on macOS: Raycast
+ignores a hotkey that System Events sends.** With Dictation on
+Hyper+Space, the line below neither started nor stopped it, although
+`osascript` exited with 0:
 
 ```sh
-osascript -e 'tell application "System Events" to key code 2 using {command down, control down, option down, shift down}'
+osascript -e 'tell application "System Events" to key code 49 using {command down, control down, option down, shift down}'
+```
+
+Before the Accessibility grant, the same line failed with
+`System Events got an error: osascript is not allowed to send
+keystrokes. (1002)`, and macOS asked if "a program running within
+Ghostty" may use AppleScript.
+
+**Verified on macOS:** Raycast accepts a key event that is posted at
+the HID event tap (`CGEventPost(kCGHIDEventTap, …)`), which
+`scripts/macos-hotkey.js` does through JXA. One tap starts Dictation,
+and the next tap stops it and inserts the text. The first version
+posted only Space with the modifier flags. That left the four
+modifiers held at the HID level, and the next Space that the user
+typed opened Dictation again. The script now posts a key-down and a
+key-up for each modifier also.
+
+```sh
+osascript -l JavaScript scripts/macos-hotkey.js 49 cmd ctrl opt shift
 ```
 
 - A tap at the press starts Dictation, and a tap at the release
   accepts the text. This is the tap mode of Raycast, not the hold
   mode. If one tap is lost, the two sides disagree until the next tap.
-- **Uncertain:** Raycast accepts a key event that System Events
-  sends.
 - **Documented:** a script that sends keys needs the Accessibility
   permission
   ([Apple: Mac Automation Scripting Guide](https://developer.apple.com/library/archive/documentation/LanguagesUtilities/Conceptual/MacAutomationScriptingGuide/AutomatetheUserInterface.html)),
   and the control of System Events needs the Automation permission
   ([Apple: Mac User Guide](https://support.apple.com/guide/mac-help/mchl07817563/mac)).
-  **Uncertain:** macOS asks for both for the terminal application
-  that started glancepad.
-- **Uncertain:** `osascript` adds a delay of about 0.1 to 0.3 seconds
-  to each tap.
+  **Verified on macOS:** Ghostty needed both, and Input Monitoring
+  for the keypad. We did not measure the delay that `osascript` adds.
 
 The nearest alternative with a start command and a stop command is
 Superwhisper. **Documented:** it has the links
@@ -157,8 +225,8 @@ The commands are then `open -g superwhisper://record/start` and
 
 ## 5. Checklist for the Mac
 
-Run each step and report the output that the step names. The tracking
-issue contains the same list.
+This is the checklist as the 2026-11-27 run used it. Step 7 now uses
+`scripts/macos-hotkey.js` instead of the System Events line.
 
 1. `git pull && pnpm install`. Report the last five lines, and the
    output of `node -v` and `sw_vers -productVersion`.

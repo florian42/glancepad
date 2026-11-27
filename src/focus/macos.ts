@@ -1,8 +1,6 @@
 // Window focus on macOS, through `ps` and `open`. Both are part of
-// macOS, and neither needs a privacy permission.
-//
-// NOT TESTED ON macOS. The method and its sources are in
-// research/macos-support.md.
+// macOS, and neither needs a privacy permission. Tested on macOS 26.5
+// with Ghostty and Claude Desktop: see research/macos-support.md.
 //
 // A terminal session reports the process id of its `claude` process.
 // `claude` is a descendant of the terminal application. So the walk

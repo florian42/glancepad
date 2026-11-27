@@ -6,10 +6,11 @@ cannot call IOKit without native code. On macOS we therefore use
 `node-hid` 3.4.0, which contains hidapi 0.15.0. Linux keeps the
 `/dev/hidraw` path of ADR-0003, and it never loads the native module.
 
-**No session ran this path on macOS.** We had no Mac. The decision
-rests on the source of the library, and on one run of the library on
-Linux. `research/macos-support.md` holds the evidence and the open
-points.
+**Update 2026-11-27:** this path ran on macOS 26.5 with the keypad
+over Bluetooth LE (issue #17). Reads and writes work as the source
+predicted. The permission prediction below was wrong for Bluetooth:
+see "Permission". USB on macOS is not tested.
+`research/macos-support.md` holds the evidence.
 
 ## Considered options
 
@@ -54,13 +55,16 @@ We chose `node-hid`, with these limits on its cost:
   open with `nonExclusive: true`, as the Linux path does not seize
   either.
 - **Permission.** The Apple HID source asks for the Input Monitoring
-  permission only for a keyboard, a mouse, or a trackpad service. The
-  vendor interface (usage page `0xFF00`) is none of them. We expect
-  no permission dialog.
+  permission only for a keyboard, a mouse, or a trackpad service. We
+  expected no permission, because the vendor interface (usage page
+  `0xFF00`) is none of them. **That was wrong over Bluetooth.** There
+  macOS shows one device with five usages, the keyboard usage among
+  them, and the open fails with `0xE00002E2` (`not permitted`) until
+  the terminal has Input Monitoring.
 
 ## Consequences
 
-- Hardware mode works on Linux and, untested, on macOS. Windows has
+- Hardware mode works on Linux, and on macOS over Bluetooth. Windows has
   no access path. `node-hid` supports Windows, so the same backend can
   serve it later.
 - `pnpm install` downloads `node-hid` on Linux also (5.5 MB). Linux
@@ -68,6 +72,5 @@ We chose `node-hid`, with these limits on its cost:
 - An unplug shows as a failed read or write, as on Linux. The
   transport then asks the library for the device list one time each
   second.
-- The open points need a Mac: the length and byte 0 of a real input
-  report, the permission dialog, and which interfaces macOS shows.
-  The tracking issue has the checklist.
+- macOS needs the Input Monitoring permission for the terminal that
+  runs glancepad, at least over Bluetooth.

@@ -1,6 +1,6 @@
 // Window focus on macOS, with `ps` and `open` replaced by fakes. No
-// test needs macOS, and no session ran the real commands on a Mac:
-// see research/macos-support.md.
+// test needs macOS. The process trees below follow what `ps` printed
+// on macOS 26.5: see research/macos-support.md.
 
 import { describe, expect, it } from "vitest";
 import {

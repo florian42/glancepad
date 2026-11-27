@@ -3,8 +3,9 @@
 // The caller loads it and gives it to the backend, so Linux never
 // loads the native module and the tests use a fake.
 //
-// NOT TESTED ON macOS. The report layout below comes from the hidapi
-// source that `node-hid` 3.4.0 contains. See research/macos-support.md.
+// Tested on macOS 26.5 over Bluetooth LE: reads give 64-byte reports
+// with byte 0 equal to 6, as hidraw does. USB on macOS is not tested.
+// See research/macos-support.md.
 
 import type { HidBackend, HidHandle } from "./hidtransport.js";
 import {
