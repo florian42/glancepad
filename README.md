@@ -244,67 +244,72 @@ glancepad sends lighting requests only. It never writes firmware.
 
 ## macOS
 
-**Each step in this section is untested on hardware.** The session
-that wrote the macOS code had no Mac. The Linux tests pass, and the
-keypad library ran on Linux. The evidence, the open points, and a
-checklist with the output to report are in
+We tested each step below on macOS 26.5 with a Codex Micro keypad
+connected over **Bluetooth**, on 2026-11-27 (issue #17). **USB on
+macOS is not tested.** The evidence is in
 [`research/macos-support.md`](research/macos-support.md).
 
-1. *(untested)* Install Node 22 or later and pnpm, then run
-   `pnpm install`. No compiler is necessary: the keypad library
-   `node-hid` contains a binary for macOS.
-2. *(untested)* Install the hooks: `pnpm hooks:install`. Start a new
-   session after that.
-3. *(untested)* Attach the keypad and run `pnpm keypad`. No udev rule
-   and no `sudo` are necessary. We expect no permission dialog,
-   because glancepad opens the vendor interface only, not the keyboard
-   interface. Quit other applications that drive the keypad: two
+1. Install Node 22 or later and pnpm, then run `pnpm install`. No
+   compiler is necessary: the keypad library `node-hid` contains a
+   binary for macOS.
+2. Install the hooks: `pnpm hooks:install`. Start a new session after
+   that.
+3. Grant **Input Monitoring** to the terminal application that runs
+   glancepad (System Settings → Privacy & Security → Input Monitoring).
+   Over Bluetooth, macOS shows the keypad as one device that also has
+   a keyboard usage, so it refuses the open without this permission.
+   Over USB the vendor interface may be a device of its own; we did
+   not test that. The error
+   is `failed to open IOHIDDevice from mach entry: (0xE00002E2)
+   (iokit/common) not permitted`. We did not have to restart the
+   terminal after the grant.
+4. Connect the keypad and run `pnpm keypad`. No udev rule and no `sudo`
+   are necessary. Quit other applications that drive the keypad: two
    hosts would both set the lighting.
-4. *(untested)* Press an agent key. For a Claude Desktop session,
-   glancepad opens the session link with `open`. For a terminal
-   session, glancepad brings the terminal application to the front.
-   It does not select a window, a tab, or a split, and it does not
-   find a session in tmux.
-5. *(untested)* Set the microphone key. See the Raycast example
-   below.
+5. Press an agent key. For a Claude Desktop session, glancepad opens
+   the session link with `open`. For a terminal session, glancepad
+   brings the terminal application to the front. It does not select a
+   window, a tab, or a split: the window that was in front last comes
+   up. It does not find a session in tmux.
+6. Set the microphone key. See the Raycast example below.
 
 ### Example: Raycast Dictation on the microphone key
 
-This example is **not tested**.
 [Raycast Dictation](https://manual.raycast.com/ai/dictation) starts
-from a hotkey that you set. Its documentation gives no link and no
-command that starts it, so glancepad sends the hotkey.
+from a hotkey that you set. Raycast ignores a hotkey that `osascript`
+sends through System Events. It accepts a hotkey that
+`scripts/macos-hotkey.js` posts at the HID level, and one tap of it
+starts or stops Dictation.
 
-1. In Raycast, set the hotkey of Dictation to Hyper+D. Hyper is
-   Cmd+Ctrl+Option+Shift. In the Raycast Hyper Key settings, the
-   option "Include Shift" must be on.
-2. Write `~/.config/glancepad/config.json`:
+1. In Raycast, set the hotkey of Dictation, for example Hyper+Space.
+   Hyper is Cmd+Ctrl+Option+Shift when the option "Include Shift" of
+   the Raycast Hyper Key is on.
+2. Write `~/.config/glancepad/config.json`. Replace `<glancepad>` with
+   the path of this repository:
 
    ```json
    {
      "talk": {
-       "start": "osascript -e 'tell application \"System Events\" to key code 2 using {command down, control down, option down, shift down}'",
-       "stop": "osascript -e 'tell application \"System Events\" to key code 2 using {command down, control down, option down, shift down}'"
+       "start": "osascript -l JavaScript <glancepad>/scripts/macos-hotkey.js 49 cmd ctrl opt shift",
+       "stop": "osascript -l JavaScript <glancepad>/scripts/macos-hotkey.js 49 cmd ctrl opt shift"
      }
    }
    ```
 
-   Key code 2 is the D key. Each command sends one tap of the hotkey.
-   The tap at the press starts Dictation, and the tap at the release
-   accepts the text.
-3. Start `pnpm keypad` again and hold the microphone key. macOS asks
-   for two permissions for the terminal application that runs
-   glancepad: **Accessibility** (System Settings → Privacy & Security
-   → Accessibility) and **Automation** for "System Events". Grant
-   both. Raycast itself needs the Microphone and Accessibility
+   Key code 49 is the Space key. Each command sends one tap of the
+   hotkey. The tap at the press starts Dictation, and the tap at the
+   release accepts the text.
+3. Grant **Accessibility** to the terminal application that runs
+   glancepad. Raycast itself needs the Microphone and Accessibility
    permissions.
+4. Start `pnpm keypad` again, hold the microphone key, speak, and
+   release it.
 
-A single short tap of the microphone key records for 350 ms only. If
-one tap is lost, Dictation and the key disagree: press Esc in Raycast
-to cancel. If Raycast ignores the sent hotkey, use a dictation tool
-with a start command and a stop command. Superwhisper documents
-`open -g superwhisper://record/start` and
-`open -g superwhisper://record/stop`; that is not tested either.
+If one tap is lost, Dictation and the key disagree: press the hotkey
+yourself to stop Dictation. The Raycast link
+`raycast://extensions/raycast/dictation/dictate` (from "Copy Deeplink")
+starts Dictation, but a second run does not stop it, so it cannot be
+the stop command.
 
 ## Optional Claude Code mod
 
@@ -339,8 +344,8 @@ press on an empty key does nothing.
 
 Setup:
 
-1. Use Hyprland on Linux. macOS has an untested implementation: see
-   "macOS". No other window system has one.
+1. Use Hyprland on Linux, or macOS: see "macOS". No other window
+   system has an implementation.
 2. Install the hooks with `pnpm hooks:install`, or load
    [`scripts/glancepad.settings.json`](scripts/glancepad.settings.json)
    in one session with `claude --settings scripts/glancepad.settings.json`.
